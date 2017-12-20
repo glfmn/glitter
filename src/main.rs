@@ -71,45 +71,86 @@ impl Args {
     }
 }
 
+/// Program exit conditions, allows for smoother cleanup and operation of the main program
+#[derive(Debug, PartialEq, Eq)]
+enum Exit {
+    Failure(i32),
+    Success,
+}
+
+/// Error types for program operation
+#[derive(Debug, PartialEq, Eq)]
+enum ProgramErr<'a> {
+    BadPath(Box<&'a str>),
+    BadFormat(Box<&'a str>),
+}
+
 fn main() {
-    // Read and parse command-line arguments
-    let args: Args = Docopt::new(USAGE)
+    let exit = {
+        // Read and parse command-line arguments
+        let args: Args = Docopt::new(USAGE)
         .and_then(|d| d.deserialize())
         .unwrap_or_else(|e| e.exit());
 
-    // If no path is provided, set a sensible default for the program to use, currently "."
-    let path = if args.flag_path.is_empty() {
-        "."
-    } else {
-        &args.flag_path
+        // If no path is provided, set a sensible default for the program to use, currently "."
+        let path = if args.flag_path.is_empty() {
+            "."
+        } else {
+            &args.flag_path
+        };
+
+        // Carry out primary program operation
+        let error: Result<(), ProgramErr> = match args.mode() {
+            // Emit version imformation
+            Mode::Version => {
+                println!("{}", VERSION);
+                Ok(())
+            },
+            // Emit help information by way of usage string
+            Mode::Help => {
+                println!("{}", USAGE);
+                Ok(())
+            },
+            // Determine whether the given path is a git repository
+            Mode::IsRepo => {
+                match Repository::open(path) {
+                    Ok(_) => Ok(()),
+                    Err(_) => Err(ProgramErr::BadPath(Box::new(path))),
+                }
+            },
+            // Parse pretty format and insert git status
+            Mode::Gist => {
+                match Repository::open(path) {
+                    Ok(_) => {
+                        Err(ProgramErr::BadFormat(Box::new(&args.arg_format)))
+                    },
+                    Err(_) => Err(ProgramErr::BadPath(Box::new(path))),
+                }
+            },
+        };
+
+        // Handle errors and instruct program what exit code to use
+        match error {
+            Ok(()) => Exit::Success,
+            Err(ProgramErr::BadPath(path)) => {
+                if !args.flag_quiet {
+                    eprintln!("{} is not a git repository", path);
+                }
+                Exit::Failure(1)
+            },
+            Err(ProgramErr::BadFormat(format)) => {
+                if !args.flag_quiet {
+                    eprintln!("unable to parse format specifier \"{}\"", format);
+                }
+                Exit::Failure(1)
+            }
+        }
     };
 
-    // Carry out primary program operation
-    match args.mode() {
-        // Emit version imformation
-        Mode::Version => {
-            println!("{}", VERSION);
-        },
-        // Emit help information by way of usage string
-        Mode::Help => {
-            println!("{}", USAGE);
-        },
-        // Determine whether the given path is a git repository
-        Mode::IsRepo => {
-            match Repository::open(path) {
-                Ok(_) => println!("yes"),
-                Err(_) => println!("no"),
-            };
-        },
-        // Parse pretty format and insert git status
-        Mode::Gist => {
-            let _ = match Repository::open(path) {
-                Ok(repo) => {
-                    println!("main program");
-                    repo
-                },
-                Err(_) => panic!("not a git repository"),
-            };
-        },
-    }
+    // Exit with desiered exit code, done outside of the scope of the main program so most values
+    // have a chance to clean up and exit.
+    match exit {
+        Exit::Failure(code) => std::process::exit(code),
+        _ => (),
+    };
 }
