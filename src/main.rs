@@ -11,15 +11,20 @@ const USAGE: &'static str = "
 gist, git repository status pretty-printer
 
 Usage:
-    gist [--help --version]
-    gist is-repo [--path DIR]
-    gist <format>
+    gist (--help | --version)
+    gist is-repo [--path DIR] [--quiet]
+    gist <format> [--path DIR] [--quiet]
 
 Options:
     -h --help        Show this screen
     -v --version     Show version
     -p --path DIR    File path to git repository
+    -q --quiet       Hide error messages
 
+gist, a git repository status pretty-printing utility, useful for
+making custom prompts which incorporate information about the current
+git repository, such as the branch name, number of unstaged changes,
+and more.
 ";
 
 /// Version, output as version information.
@@ -41,6 +46,7 @@ struct Args {
     arg_format: String,
     flag_help: bool,
     flag_version: bool,
+    flag_quiet: bool,
     flag_path: String,
 }
 
