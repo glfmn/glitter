@@ -1,3 +1,5 @@
+//! gist, a git repository status pretty-printer
+
 extern crate docopt;
 extern crate git2;
 #[macro_use]
@@ -28,15 +30,19 @@ and more.
 ";
 
 /// Version, output as version information.
-const VERSION: &'static str = "0.1.0"; // TODO: find better way to handle this
+const VERSION: &'static str = "0.1.0"; // HACK: find better way to handle this
 
 /// Program operation mode, retreived from Args
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 enum Mode {
+    /// Emit version infromation
     Version,
+    /// Emit help information
     Help,
+    /// Tell if we are inside a git repository or not
     IsRepo,
-    Gist
+    /// Parse pretty-printing format and insert git stats
+    Gist,
 }
 
 /// Arguments parsed from command-line according to usage string
