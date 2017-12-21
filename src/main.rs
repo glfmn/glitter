@@ -5,9 +5,12 @@ extern crate clap;
 extern crate git2;
 #[macro_use]
 extern crate nom;
+extern crate rand;
+#[macro_use]
+extern crate rand_derive;
 
-#[cfg(test)]
-extern crate quickcheck;
+#[cfg(test)] #[macro_use]
+#[cfg(test)] extern crate quickcheck;
 
 mod parser;
 
@@ -90,6 +93,7 @@ fn main() {
             Mode::Gist{ path, format } => {
                 match Repository::open(path) {
                     Ok(_) => {
+                        let _ = parser::expression_tree(format.as_bytes());
                         Err(ProgramErr::BadFormat(Box::new(format)))
                     },
                     Err(_) => Err(ProgramErr::BadPath(Box::new(path))),

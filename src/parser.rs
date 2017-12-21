@@ -4,11 +4,12 @@ use nom::IResult;
 use std::fmt;
 use std::str::{self, Utf8Error};
 
+use rand::{Rand, Rng};
 
 /// All valid expression names
 ///
 /// Defines the "standard library" of named expressions
-#[derive(Debug, PartialEq, Eq, Copy, Clone)]
+#[derive(Debug, PartialEq, Eq, Copy, Clone, Rand)]
 pub enum Name {
     Backslash,
     Color,
@@ -88,6 +89,43 @@ pub enum Expression {
 }
 
 
+impl Rand for Expression {
+    fn rand<R: Rng>(rng: &mut R) -> Self {
+        use self::Expression::{ Named, Literal, Group };
+        match rng.gen_range(0, 4) {
+            0 => {
+                let mut args = Vec::new();
+                while let Some(e) = Option::<Expression>::rand(rng) {
+                    args.push(e);
+                }
+                Named { name: Name::rand(rng), args: Some(args) }
+            },
+            1 => Named { name: Name::rand(rng), args: None },
+            2 => {
+                let mut s = Vec::new();
+                while let Some(c) = Option::<u8>::rand(rng) {
+                    s.push(c)
+                }
+                Literal(str::from_utf8(&s).unwrap_or("#").to_string())
+            }
+            _ => {
+                let mut sub = Vec::new();
+                while let Some(e) = Option::<Expression>::rand(rng) {
+                    sub.push(e);
+                }
+                match rng.gen_range(0, 5) {
+                    0 => Group {l: "{".to_string(), r: "}".to_string(), sub: Tree(sub)},
+                    1 => Group {l: "(".to_string(), r: ")".to_string(), sub: Tree(sub)},
+                    2 => Group {l: "[".to_string(), r: "]".to_string(), sub: Tree(sub)},
+                    3 => Group {l: "g(".to_string(), r: ")".to_string(), sub: Tree(sub)},
+                    _ => Group {l: "<".to_string(), r: ">".to_string(), sub: Tree(sub)},
+                }
+            }
+        }
+    }
+}
+
+
 impl fmt::Display for Expression {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
@@ -119,7 +157,18 @@ impl fmt::Display for Expression {
 
 /// A collection of expressions which may recursively form an expression tree
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub struct Tree(Vec<Expression>);
+pub struct Tree(pub Vec<Expression>);
+
+
+impl Rand for Tree {
+    fn rand<R: Rng>(rng: &mut R) -> Self {
+        let mut sub = Vec::new();
+        while let Some(e) = Option::<Expression>::rand(rng) {
+            sub.push(e);
+        }
+        Tree(sub)
+    }
+}
 
 
 impl fmt::Display for Tree {
@@ -455,7 +504,7 @@ mod test {
         let parse = expression_tree(test).unwrap().1;
         assert!(format!("{}", parse) == expect, "{} == {}\n\tparsed {:?}", parse, expect, parse);
 
-        let test = b"\\c('blue',\\g(\\b\\B))";
+        let test = b"\\c('blue',\\g(\\b\\B),'')";
         let expect = str::from_utf8(test).unwrap();
         let parse = expression_tree(test).unwrap().1;
         assert!(format!("{}", parse) == expect, "{} == {}\n\tparsed {:?}", parse, expect, parse);

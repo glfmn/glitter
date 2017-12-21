@@ -11,6 +11,8 @@ readme = "README.md"
 git2 = "0.6"
 clap = "~2.29"
 nom = "^3.2"
+rand = "0.4"
+rand_derive = "0.3"
 
 [dev-dependencies]
 quickcheck = "0.4"
