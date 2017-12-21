@@ -1,72 +1,39 @@
 //! gist, a git repository status pretty-printer
 
-extern crate docopt;
-extern crate git2;
 #[macro_use]
-extern crate serde_derive;
+extern crate clap;
+extern crate git2;
 
-use docopt::Docopt;
+use clap::ArgMatches;
 use git2::Repository;
 
-/// Usage specification for program which determines how to parse arguments
-const USAGE: &'static str = "
-gist, git repository status pretty-printer
-
-Usage:
-    gist (--help | --version)
-    gist is-repo [--path DIR] [--quiet]
-    gist <format> [--path DIR] [--quiet]
-
-Options:
-    -h --help        Show this screen
-    -v --version     Show version
-    -p --path DIR    File path to git repository
-    -q --quiet       Hide error messages
-
-gist, a git repository status pretty-printing utility, useful for
-making custom prompts which incorporate information about the current
-git repository, such as the branch name, number of unstaged changes,
-and more.
-";
-
-/// Version, output as version information.
-const VERSION: &'static str = "0.1.0"; // HACK: find better way to handle this
+const DESC: &'static str = "Gist is a git repository status pretty-printing utility, useful for \
+making custom prompts which incorporate information about the current git repository, such as the \
+branch name, number of unstaged changes, and more.";
 
 /// Program operation mode, retreived from Args
 #[derive(Debug, PartialEq, Eq)]
-enum Mode {
-    /// Emit version infromation
-    Version,
-    /// Emit help information
-    Help,
-    /// Tell if we are inside a git repository or not
-    IsRepo,
+enum Mode<'a> {
+    /// Tell if we are inside a git repository or not at the desired path
+    IsRepo(&'a str),
     /// Parse pretty-printing format and insert git stats
-    Gist,
+    Gist {
+        /// Path of the git repository to check
+        path: &'a str,
+        /// Format string to parse
+        format: &'a str
+    },
 }
 
-/// Arguments parsed from command-line according to usage string
-#[derive(Debug, Deserialize)]
-struct Args {
-    cmd_is_repo: bool,
-    arg_format: String,
-    flag_help: bool,
-    flag_version: bool,
-    flag_quiet: bool,
-    flag_path: String,
-}
-
-impl Args {
-    /// Get execution mode
-    fn mode(&self) -> Mode {
-        if self.flag_version {
-            Mode::Version
-        } else if self.flag_help {
-            Mode::Help
-        } else if self.cmd_is_repo {
-            Mode::IsRepo
+impl<'a> Mode<'a> {
+    fn from_matches(matches: &'a ArgMatches) -> Self {
+        if let Some(matches) = matches.subcommand_matches("isrepo") {
+            Mode::IsRepo(matches.value_of("path").unwrap_or("."))
         } else {
-            Mode::Gist
+            Mode::Gist {
+                path: matches.value_of("path").unwrap_or("."),
+                format: matches.value_of("FORMAT").unwrap(),
+            }
         }
     }
 }
@@ -88,41 +55,35 @@ enum ProgramErr<'a> {
 fn main() {
     let exit = {
         // Read and parse command-line arguments
-        let args: Args = Docopt::new(USAGE)
-        .and_then(|d| d.deserialize())
-        .unwrap_or_else(|e| e.exit());
-
-        // If no path is provided, set a sensible default for the program to use, currently "."
-        let path = if args.flag_path.is_empty() {
-            "."
-        } else {
-            &args.flag_path
-        };
+        let matches = clap_app!(gist =>
+            (version: crate_version!())
+            (author: crate_authors!())
+            (about: crate_description!())
+            (after_help: DESC)
+            (@arg FORMAT: +required "pretty-printing format specification")
+            (@arg path: -p --path +takes_value "path to test")
+            (@setting ArgsNegateSubcommands)
+            // (@setting SubcommandsNegateReqs)
+            (@subcommand isrepo =>
+                (about: "Determine if given path is a git repository")
+                (@arg path: -p --path +takes_value "path to test [default \".\"]")
+            )
+        ).get_matches();
 
         // Carry out primary program operation
-        let error: Result<(), ProgramErr> = match args.mode() {
-            // Emit version imformation
-            Mode::Version => {
-                println!("{}", VERSION);
-                Ok(())
-            },
-            // Emit help information by way of usage string
-            Mode::Help => {
-                println!("{}", USAGE);
-                Ok(())
-            },
+        let error: Result<(), ProgramErr> = match Mode::from_matches(&matches) {
             // Determine whether the given path is a git repository
-            Mode::IsRepo => {
+            Mode::IsRepo(path) => {
                 match Repository::open(path) {
                     Ok(_) => Ok(()),
                     Err(_) => Err(ProgramErr::BadPath(Box::new(path))),
                 }
             },
             // Parse pretty format and insert git status
-            Mode::Gist => {
+            Mode::Gist{ path, format } => {
                 match Repository::open(path) {
                     Ok(_) => {
-                        Err(ProgramErr::BadFormat(Box::new(&args.arg_format)))
+                        Err(ProgramErr::BadFormat(Box::new(format)))
                     },
                     Err(_) => Err(ProgramErr::BadPath(Box::new(path))),
                 }
@@ -133,15 +94,11 @@ fn main() {
         match error {
             Ok(()) => Exit::Success,
             Err(ProgramErr::BadPath(path)) => {
-                if !args.flag_quiet {
-                    eprintln!("{} is not a git repository", path);
-                }
+                eprintln!("{} is not a git repository", path);
                 Exit::Failure(1)
             },
             Err(ProgramErr::BadFormat(format)) => {
-                if !args.flag_quiet {
-                    eprintln!("unable to parse format specifier \"{}\"", format);
-                }
+                eprintln!("unable to parse format specifier \"{}\"", format);
                 Exit::Failure(1)
             }
         }
