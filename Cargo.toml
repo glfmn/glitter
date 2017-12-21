@@ -10,3 +10,7 @@ readme = "README.md"
 [dependencies]
 git2 = "0.6"
 clap = "~2.29"
+nom = "^3.2"
+
+[dev-dependencies]
+quickcheck = "0.4"

@@ -3,6 +3,13 @@
 #[macro_use]
 extern crate clap;
 extern crate git2;
+#[macro_use]
+extern crate nom;
+
+#[cfg(test)]
+extern crate quickcheck;
+
+mod parser;
 
 use clap::ArgMatches;
 use git2::Repository;
