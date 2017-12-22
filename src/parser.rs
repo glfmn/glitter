@@ -28,6 +28,7 @@ pub enum Name {
     DeletedStaged,
     Renamed,
     RenamedStaged,
+    Quote,
 }
 
 
@@ -51,6 +52,7 @@ impl fmt::Display for Name {
             &Name::DeletedStaged => "D",
             &Name::Renamed => "r",
             &Name::RenamedStaged => "R",
+            &Name::Quote => "\'",
         };
         write!(f, "{}", literal)
     }
@@ -268,6 +270,11 @@ named! {
     do_parse!(tag!("B") >> (Name::Remote))
 }
 
+named! {
+    quote<&[u8], Name>,
+    do_parse!(tag!("\'") >> (Name::Quote))
+}
+
 
 named! {
     expression_name<&[u8], Name>,
@@ -288,7 +295,8 @@ named! {
         renamed |
         renamed_staged |
         branch |
-        remote
+        remote |
+        quote
     )
 }
 
