@@ -142,7 +142,7 @@ fn main() {
         match error {
             Ok(()) => Exit::Success,
             Err(BadPath(path)) => {
-                eprintln!("{} is not a git repository", path);
+                eprintln!("\"{}\" is not a git repository", path);
                 Exit::Failure(1)
             },
             Err(BadFormat(format)) => {
@@ -150,7 +150,7 @@ fn main() {
                 Exit::Failure(1)
             },
             Err(BadParse(format, parsed)) => {
-                eprintln!("parsed {} does not match provided {}", parsed, format);
+                eprintln!("parsed \"{}\" does not match provided \"{}\"", parsed, format);
                 Exit::Failure(1)
             },
         }
