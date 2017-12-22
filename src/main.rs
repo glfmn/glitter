@@ -17,9 +17,10 @@ mod parser;
 use clap::ArgMatches;
 use git2::Repository;
 
-const DESC: &'static str = "Gist is a git repository status pretty-printing utility, useful for \
-making custom prompts which incorporate information about the current git repository, such as the \
-branch name, number of unstaged changes, and more.";
+const DESC: &'static str = "Gist is a git repository status pretty-printing utility, useful for
+making custom prompts which incorporate information about the current
+git repository, such as the branch name, number of unstaged changes,
+and more.";
 
 /// Program operation mode, retreived from Args
 #[derive(Debug, PartialEq, Eq)]
@@ -33,12 +34,21 @@ enum Mode<'a> {
         /// Format string to parse
         format: &'a str
     },
+    Verify {
+        /// Format string to parse
+        format: &'a str
+    },
 }
 
 impl<'a> Mode<'a> {
     fn from_matches(matches: &'a ArgMatches) -> Self {
         if let Some(matches) = matches.subcommand_matches("isrepo") {
-            Mode::IsRepo(matches.value_of("path").unwrap_or("."))
+            return Mode::IsRepo(matches.value_of("path").unwrap_or("."))
+        };
+        if let Some(matches) = matches.subcommand_matches("verify") {
+            Mode::Verify {
+                format: matches.value_of("FORMAT").unwrap()
+            }
         } else {
             Mode::Gist {
                 path: matches.value_of("path").unwrap_or("."),
@@ -60,6 +70,7 @@ enum Exit {
 enum ProgramErr<'a> {
     BadPath(Box<&'a str>),
     BadFormat(Box<&'a str>),
+    BadParse(Box<&'a str>, String),
 }
 
 fn main() {
@@ -71,14 +82,20 @@ fn main() {
             (about: crate_description!())
             (after_help: DESC)
             (@arg FORMAT: +required "pretty-printing format specification")
-            (@arg path: -p --path +takes_value "path to test")
+            (@arg path: -p --path +takes_value "path to test [default \".\"]")
             (@setting ArgsNegateSubcommands)
-            // (@setting SubcommandsNegateReqs)
+            (@setting SubcommandsNegateReqs)
             (@subcommand isrepo =>
                 (about: "Determine if given path is a git repository")
                 (@arg path: -p --path +takes_value "path to test [default \".\"]")
             )
+            (@subcommand verify =>
+                (about: "Determine if FORMAT parses correctly")
+                (@arg FORMAT: +required "pretty-printing format specification")
+            )
         ).get_matches();
+
+        use ProgramErr::{BadFormat, BadPath, BadParse};
 
         // Carry out primary program operation
         let error: Result<(), ProgramErr> = match Mode::from_matches(&matches) {
@@ -86,32 +103,56 @@ fn main() {
             Mode::IsRepo(path) => {
                 match Repository::open(path) {
                     Ok(_) => Ok(()),
-                    Err(_) => Err(ProgramErr::BadPath(Box::new(path))),
+                    Err(_) => Err(BadPath(Box::new(path))),
                 }
             },
             // Parse pretty format and insert git status
             Mode::Gist{ path, format } => {
                 match Repository::open(path) {
                     Ok(_) => {
-                        let _ = parser::expression_tree(format.as_bytes());
-                        Err(ProgramErr::BadFormat(Box::new(format)))
+                        let parse = parser::expression_tree(format.as_bytes()).to_result();
+                        match parse {
+                            Err(_) => Err(BadFormat(Box::new(format))),
+                            Ok(parsed) => { println!("{}", parsed); Ok(()) },
+                        }
                     },
-                    Err(_) => Err(ProgramErr::BadPath(Box::new(path))),
+                    Err(_) => Err(BadPath(Box::new(path))),
                 }
             },
+            Mode::Verify { format } => {
+                let parse = parser::expression_tree(format.as_bytes());
+                if parse.is_incomplete() {
+                    Err(BadFormat(Box::new(format)))
+                } else {
+                    match parse.to_result() {
+                        Err(_) => Err(BadFormat(Box::new(format))),
+                        Ok(parsed) => {
+                            if format!("{}", parsed) != format {
+                                Err(BadParse(Box::new(format), format!("{}",parsed)))
+                            } else {
+                                Ok(())
+                            }
+                        },
+                    }
+                }
+            }
         };
 
         // Handle errors and instruct program what exit code to use
         match error {
             Ok(()) => Exit::Success,
-            Err(ProgramErr::BadPath(path)) => {
+            Err(BadPath(path)) => {
                 eprintln!("{} is not a git repository", path);
                 Exit::Failure(1)
             },
-            Err(ProgramErr::BadFormat(format)) => {
+            Err(BadFormat(format)) => {
                 eprintln!("unable to parse format specifier \"{}\"", format);
                 Exit::Failure(1)
-            }
+            },
+            Err(BadParse(format, parsed)) => {
+                eprintln!("parsed {} does not match provided {}", parsed, format);
+                Exit::Failure(1)
+            },
         }
     };
 
