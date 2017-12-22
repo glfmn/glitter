@@ -31,12 +31,14 @@ pub enum Name {
     Renamed,
     RenamedStaged,
     Quote,
+    Stashed,
 }
 
 
 impl fmt::Display for Name {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let literal = match self {
+            &Name::Stashed => "h",
             &Name::Backslash => "\\",
             &Name::Color => "c",
             &Name::Bold => "*",
@@ -177,7 +179,7 @@ pub struct Tree(pub Vec<Expression>);
 
 impl Rand for Tree {
     fn rand<R: Rng>(rng: &mut R) -> Self {
-        let mut sub = Vec::new();
+        let mut sub = vec![Expression::rand(rng)];
         while let Some(e) = Option::<Expression>::rand(rng) {
             sub.push(e);
         }
@@ -290,6 +292,12 @@ named! {
 
 
 named! {
+    stashed<&[u8], Name>,
+    do_parse!(tag!("h") >> (Name::Stashed))
+}
+
+
+named! {
     expression_name<&[u8], Name>,
     alt!(
         backslash |
@@ -309,7 +317,8 @@ named! {
         renamed_staged |
         branch |
         remote |
-        quote
+        quote |
+        stashed
     )
 }
 
