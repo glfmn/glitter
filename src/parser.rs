@@ -3,8 +3,10 @@
 use nom::IResult;
 use std::fmt;
 use std::str::{self, Utf8Error};
-
 use rand::{Rand, Rng};
+
+#[cfg(test)]
+use quickcheck::{Arbitrary, Gen};
 
 /// All valid expression names
 ///
@@ -127,6 +129,14 @@ impl Rand for Expression {
                 }
             }
         }
+    }
+}
+
+
+#[cfg(test)]
+impl Arbitrary for Expression {
+    fn arbitrary<G: Gen>(g: &mut G) -> Self {
+        g.gen::<Expression>()
     }
 }
 
@@ -444,6 +454,34 @@ pub fn expression(input: &[u8]) -> IResult<&[u8],Expression> {
 #[cfg(test)]
 mod test {
     use super::*;
+
+    quickcheck! {
+        fn disp_parse_idempotent(expect: Expression) -> bool {
+            let test = format!("{}", expect);
+            println!("{} from {:?}", test, expect);
+            let parse = expression(test.as_bytes());
+            println!("\t parsed => {:?}", parse);
+            let parse = parse.unwrap().1;
+            println!("expect {} == {}\n", expect, parse);
+            parse == expect
+        }
+    }
+
+    #[test]
+    fn japanese_text() {
+        let test = "'日本語は綺麗なのです'\\g('試験'\\*('テスト'))".as_bytes();
+        let expect = Tree(vec![
+            Expression::Literal("日本語は綺麗なのです".to_string()),
+            Expression::Group{ l: "g(".to_string(), r: ")".to_string(), sub: Tree(vec![
+                Expression::Literal("試験".to_string()),
+                Expression::Named { name: Name::Bold, args: Some(vec![
+                    Expression::Literal("テスト".to_string())],
+                )},
+            ])},
+        ]);
+        let parse = expression_tree(test).unwrap().1;
+        assert!(parse == expect, "{:?} != {:?}", parse, expect);
+    }
 
     #[test]
     fn named_expression_no_args() {
