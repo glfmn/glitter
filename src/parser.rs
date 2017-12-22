@@ -445,8 +445,8 @@ pub fn expression_tree(input: &[u8]) -> IResult<&[u8], Tree> {
 pub fn expression(input: &[u8]) -> IResult<&[u8],Expression> {
     alt!(input,
         group_expression |
-        named_expression |
-        literal
+        literal |
+        named_expression
     )
 }
 
