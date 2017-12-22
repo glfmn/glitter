@@ -179,7 +179,7 @@ pub struct Tree(pub Vec<Expression>);
 
 impl Rand for Tree {
     fn rand<R: Rng>(rng: &mut R) -> Self {
-        let mut sub = vec![Expression::rand(rng)];
+        let mut sub = vec![];
         while let Some(e) = Option::<Expression>::rand(rng) {
             sub.push(e);
         }
