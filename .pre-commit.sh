@@ -31,9 +31,7 @@ then
     cargo doc --no-deps &&
     cargo build &&
     # Build and test without profiler
-    cargo test --all &&
-    # Build and test with profiler
-    cargo test --all --features profiler
+    cargo test --all
 
     # Capture exit code from tests
     status=$?
