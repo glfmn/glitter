@@ -108,8 +108,11 @@ impl Rand for Expression {
                 while let Some(c) = Option::<u8>::rand(rng) {
                     s.push(c)
                 }
-                Literal(str::from_utf8(&s).unwrap_or("#").to_string())
-            }
+                let s = str::from_utf8(&s).unwrap_or("#");
+                let s = str::replace(&s, "'", "");
+                let s = str::replace(&s, "\\", "");
+                Literal(s.to_string())
+            },
             _ => {
                 let mut sub = Vec::new();
                 while let Some(e) = Option::<Expression>::rand(rng) {
