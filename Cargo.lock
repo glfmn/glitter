@@ -95,26 +95,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "fuchsia-zircon"
-version = "0.3.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-dependencies = [
- "bitflags 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "fuchsia-zircon-sys 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
 name = "fuchsia-zircon-sys"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "bitflags 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
-
-[[package]]
-name = "fuchsia-zircon-sys"
-version = "0.3.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "gist"
@@ -124,7 +110,7 @@ dependencies = [
  "git2 0.6.9 (registry+https://github.com/rust-lang/crates.io-index)",
  "nom 3.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "quickcheck 0.4.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "rand 0.4.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rand 0.3.18 (registry+https://github.com/rust-lang/crates.io-index)",
  "rand_derive 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
@@ -284,15 +270,6 @@ version = "0.3.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "fuchsia-zircon 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "libc 0.2.34 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
-name = "rand"
-version = "0.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-dependencies = [
- "fuchsia-zircon 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "libc 0.2.34 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
@@ -483,9 +460,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 "checksum curl-sys 0.3.15 (registry+https://github.com/rust-lang/crates.io-index)" = "4bee31aa3a079d5f3ff9579ea4dcfb1b1a17a40886f5f467436d383e78134b55"
 "checksum env_logger 0.3.5 (registry+https://github.com/rust-lang/crates.io-index)" = "15abd780e45b3ea4f76b4e9a26ff4843258dd8a3eed2775a0e7368c2e7936c2f"
 "checksum fuchsia-zircon 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)" = "f6c0581a4e363262e52b87f59ee2afe3415361c6ec35e665924eb08afe8ff159"
-"checksum fuchsia-zircon 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)" = "bd510087c325af53ba24f3be8f1c081b0982319adcb8b03cad764512923ccc19"
 "checksum fuchsia-zircon-sys 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)" = "43f3795b4bae048dc6123a6b972cadde2e676f9ded08aef6bb77f5f157684a82"
-"checksum fuchsia-zircon-sys 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)" = "08b3a6f13ad6b96572b53ce7af74543132f1a7055ccceb6d073dd36c54481859"
 "checksum git2 0.6.9 (registry+https://github.com/rust-lang/crates.io-index)" = "9bc3a99aff7075dbcf8f42a66af5bd480404a2f4a9b8d03b7422b0db76d7fbd5"
 "checksum idna 0.1.4 (registry+https://github.com/rust-lang/crates.io-index)" = "014b298351066f1512874135335d62a789ffe78a9974f94b43ed5621951eaf7d"
 "checksum kernel32-sys 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)" = "7507624b29483431c0ba2d82aece8ca6cdba9382bff4ddd0f7490560c056098d"
@@ -505,7 +480,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 "checksum quickcheck 0.4.1 (registry+https://github.com/rust-lang/crates.io-index)" = "02c2411d418cea2364325b18a205664f9ef8252e06b2e911db97c0b0d98b1406"
 "checksum quote 0.3.15 (registry+https://github.com/rust-lang/crates.io-index)" = "7a6e920b65c65f10b2ae65c831a81a073a89edd28c7cce89475bff467ab4167a"
 "checksum rand 0.3.18 (registry+https://github.com/rust-lang/crates.io-index)" = "6475140dfd8655aeb72e1fd4b7a1cc1c202be65d71669476e392fe62532b9edd"
-"checksum rand 0.4.1 (registry+https://github.com/rust-lang/crates.io-index)" = "9d5f78082e6a6d042862611e9640cf20776185fee506cf6cf67e93c6225cee31"
 "checksum rand_derive 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)" = "5d34373ebb1bba42a5cb2386a3ea286ab84bba0f426d07bbc822687f537d6c6a"
 "checksum redox_syscall 0.1.32 (registry+https://github.com/rust-lang/crates.io-index)" = "ab105df655884ede59d45b7070c8a65002d921461ee813a024558ca16030eea0"
 "checksum redox_termios 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)" = "7e891cfe48e9100a70a3b6eb652fef28920c117d366339687bd5576160db0f76"
