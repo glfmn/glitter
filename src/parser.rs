@@ -71,14 +71,46 @@ impl fmt::Display for Name {
 /// 2. Group Expressions
 /// 3. Literal Expressions
 ///
-/// The interpreter transforms these expressions to their final output.
+/// The interpreter transforms these expressions to their final output after they have been
+/// parsed from the input string.
+///
+/// **Named expressions** take one of two forms: the plain form with no arguments, or with a list
+/// of arguments, comma seperated.
+///
+/// - `\name` plain form
+/// - `\name(exp1,exp2,...,expn)` with expressions as arguments, comma seperated.
+///
+/// **Group expressions** are set of expressions, which are not comma seperated.  There are a few
+/// base group types:
+///
+/// - `\()` parentheses - wrap with parens
+/// - `\{}` curly braces - wrap with curly braces
+/// - `\[]` square brackets - wrap contents with square brackets
+/// - `\<>` angle brackets - wrap contenst with angle brackets
+/// - `\g()` bare group - do not wrap contents with anything
+///
+/// The base of all gist expressions is an implicit bare group.  Thus, the following is a valid
+/// gist expression even though expressions are next to each-other without an explicit bare group.
+///
+/// ```txt
+/// \(\*(\b\B)\+\-)\[\A\M\D\R]\{\h('@')}'~'
+/// ```
+///
+/// By nesting groups of expressions, we can create an implicit tree.
+///
+/// A **literal expression** is any valid utf8 characters between single quites, except for single
+/// quotes and backslashes.
+///
+/// ```txt
+/// 'hello''we''are''literal''expressions''I am one including whitespace'
+/// ```
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Expression {
     /// An expression with a name and optional arguments
     Named {
-        /// Name of the macro
+        /// Name of the expression
         name: Name,
-        /// Arguments to the macro, zero or more
+        /// Arguments to the expression, zero or more
         args: Option<Vec<Expression>>,
     },
     /// A group of sub-expressions which forms an expression tree
@@ -173,6 +205,9 @@ impl fmt::Display for Expression {
 
 
 /// A collection of expressions which may recursively form an expression tree
+///
+/// Seperate struct, use mutual recursion between tree and expressions to make parsing easier to
+/// implement.  May combine them in the future.
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Tree(pub Vec<Expression>);
 
