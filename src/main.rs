@@ -12,6 +12,7 @@ extern crate rand_derive;
 #[cfg(test)] #[macro_use]
 #[cfg(test)] extern crate quickcheck;
 
+mod ast;
 mod parser;
 
 use clap::ArgMatches;
