@@ -13,6 +13,8 @@ extern crate rand_derive;
 #[cfg(test)] extern crate quickcheck;
 
 mod ast;
+mod git;
+mod interpreter;
 mod parser;
 
 use clap::ArgMatches;
@@ -114,7 +116,17 @@ fn main() {
                         let parse = parser::expression_tree(format.as_bytes()).to_result();
                         match parse {
                             Err(_) => Err(BadFormat(Box::new(format))),
-                            Ok(parsed) => { println!("{}", parsed); Ok(()) },
+                            Ok(parsed) => {
+                                let stats: git::Stats = Default::default();
+                                let interpreter = interpreter::Interpreter::new(stats);
+                                match interpreter.evaluate(&parsed) {
+                                    Ok(result) => {
+                                        println!("{}", result);
+                                        Ok(())
+                                    },
+                                    Err(_) => Err(BadFormat(Box::new(format))),
+                                }
+                            },
                         }
                     },
                     Err(_) => Err(BadPath(Box::new(path))),
