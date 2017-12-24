@@ -189,11 +189,11 @@ impl fmt::Display for Expression {
                     &None => Ok(()),
                     &Some(ref args) => {
                         write!(f, "(")?;
-                        if let Some((last, es)) = args.split_last() {
+                        if let Some((first, es)) = args.split_first() {
+                            write!(f, "{}", first)?;
                             for e in es {
-                                write!(f, "{},", e)?;
+                                write!(f, ",{}", e)?;
                             }
-                            write!(f, "{}", last)?;
                         }
                         write!(f, ")")?;
                         Ok(())
