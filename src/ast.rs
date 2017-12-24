@@ -60,6 +60,14 @@ impl fmt::Display for Name {
 }
 
 
+#[cfg(test)]
+impl Arbitrary for Name {
+    fn arbitrary<G: Gen>(g: &mut G) -> Self {
+        g.gen::<Name>()
+    }
+}
+
+
 /// The types of possible expressions which form an expression tree
 ///
 /// The gist format has three types of valid expressions:
