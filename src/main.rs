@@ -3,6 +3,7 @@
 #[macro_use]
 extern crate clap;
 extern crate git2;
+extern crate libgit2_sys;
 #[macro_use]
 extern crate nom;
 extern crate rand;
@@ -112,13 +113,13 @@ fn main() {
             // Parse pretty format and insert git status
             Mode::Gist{ path, format } => {
                 match Repository::open(path) {
-                    Ok(_) => {
+                    Ok(mut repo) => {
                         let parse = parser::expression_tree(format.as_bytes()).to_result();
                         match parse {
                             Err(_) => Err(BadFormat(Box::new(format))),
                             Ok(parsed) => {
-                                let stats: git::Stats = Default::default();
-                                let interpreter = interpreter::Interpreter::new(stats);
+                                let stats = git::Stats::new(&mut repo);
+                                let interpreter = interpreter::Interpreter::new(stats.unwrap());
                                 match interpreter.evaluate(&parsed) {
                                     Ok(result) => {
                                         println!("{}", result);
