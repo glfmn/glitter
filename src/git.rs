@@ -1,5 +1,5 @@
 use git2;
-use std::ops::AddAssign;
+use std::ops::{AddAssign, BitAnd};
 use libgit2_sys as raw;
 
 
@@ -61,28 +61,28 @@ impl Stats {
             for status in statuses.iter() {
                 let flags = status.status().bits();
 
-                if flags & raw::GIT_STATUS_WT_NEW == raw::GIT_STATUS_WT_NEW {
+                if check(flags, raw::GIT_STATUS_WT_NEW) {
                     st.untracked += 1;
                 }
-                if flags & raw::GIT_STATUS_INDEX_NEW == raw::GIT_STATUS_INDEX_NEW {
+                if check(flags, raw::GIT_STATUS_INDEX_NEW) {
                     st.added_staged += 1;
                 }
-                if flags & raw::GIT_STATUS_WT_MODIFIED == raw::GIT_STATUS_WT_MODIFIED {
+                if check(flags, raw::GIT_STATUS_WT_MODIFIED) {
                     st.modified += 1;
                 }
-                if flags & raw::GIT_STATUS_INDEX_MODIFIED == raw::GIT_STATUS_INDEX_MODIFIED {
+                if check(flags, raw::GIT_STATUS_INDEX_MODIFIED) {
                     st.modified_staged += 1;
                 }
-                if flags & raw::GIT_STATUS_INDEX_RENAMED == raw::GIT_STATUS_INDEX_RENAMED {
+                if check(flags, raw::GIT_STATUS_INDEX_RENAMED) {
                     st.renamed += 1;
                 }
-                if flags & raw::GIT_STATUS_WT_DELETED == raw::GIT_STATUS_WT_DELETED {
+                if check(flags, raw::GIT_STATUS_WT_DELETED) {
                     st.deleted += 1;
                 }
-                if flags & raw::GIT_STATUS_INDEX_DELETED == raw::GIT_STATUS_INDEX_DELETED {
+                if check(flags, raw::GIT_STATUS_INDEX_DELETED) {
                     st.deleted_staged += 1;
                 }
-                if flags & raw::GIT_STATUS_CONFLICTED == raw::GIT_STATUS_CONFLICTED {
+                if check(flags, raw::GIT_STATUS_CONFLICTED) {
                     st.conflicts += 1;
                 }
             }
@@ -111,4 +111,11 @@ impl AddAssign for Stats {
         self.conflicts += rhs.conflicts;
         self.stashes += rhs.stashes;
     }
+}
+
+/// Check the bits of a flag against the value to see if they are set
+#[inline]
+fn check<B>(val: B, flag: B) -> bool
+    where B: BitAnd<Output=B> + PartialEq + Copy {
+    val & flag == flag
 }
