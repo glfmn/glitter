@@ -1,6 +1,7 @@
 use git2;
 use std::ops::{AddAssign, BitAnd};
 use libgit2_sys as raw;
+use std::fmt::Write;
 
 
 /// Stats which the interpreter uses to populate the gist expression
@@ -41,14 +42,7 @@ impl Stats {
 
         let mut st: Stats = Default::default();
 
-        if repo.is_empty()? {
-            st.branch = "initial commit".to_string();
-        }
-        {
-            if let Some(name) = repo.head()?.name() {
-                st.branch = name.split("/").last().unwrap().to_string();
-            }
-        }
+        st.branch = Stats::read_branch(repo);
 
         let mut opts = git2::StatusOptions::new();
 
@@ -94,6 +88,40 @@ impl Stats {
         })?;
 
         Ok(st)
+    }
+
+    /// Read the branch-name of the repository
+    ///
+    /// If in detached head, grab the first few characters of the commit ID if possible, otherwise
+    /// simply provide HEAD as the branch name.  This is to mimic the behaviour of `git status`.
+    fn read_branch(repo: &git2::Repository) -> String {
+        match repo.head() {
+            Ok(head) => {
+                if let Some(name) = head.name() {
+                    // try to use first 8 characters or so of the ID in detached HEAD
+                    if name == "HEAD" {
+                        if let Ok(commit) = head.peel_to_commit() {
+                            let mut s = String::new();
+                            for byte in &commit.id().as_bytes()[..4] {
+                                write!(&mut s, "{:x}", byte).unwrap();
+                            }
+                            s
+                        } else {
+                            "HEAD".to_string()
+                        }
+                    // Grab the branch from the reference
+                    } else {
+                        eprintln!("full ref: {}", name);
+                        name.split("/").last().unwrap_or("").to_string()
+                    }
+                } else {
+                    "HEAD".to_string()
+                }
+            },
+            Err(ref err) if err.code() == git2::ErrorCode::BareRepo => "master".to_string(),
+            Err(_) if repo.is_empty().unwrap_or(false) => "master".to_string(),
+            Err(_) => "HEAD".to_string(),
+        }
     }
 }
 
