@@ -3,7 +3,6 @@
 #[macro_use]
 extern crate clap;
 extern crate git2;
-extern crate libgit2_sys;
 #[macro_use]
 extern crate nom;
 extern crate rand;

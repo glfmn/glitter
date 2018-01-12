@@ -9,7 +9,6 @@ readme = "README.md"
 
 [dependencies]
 git2 = "0.6.10"
-libgit2-sys = "0.6.17"
 clap = "~2.29"
 nom = "^3.2"
 rand = "0.3"

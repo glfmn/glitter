@@ -1,6 +1,5 @@
 use git2;
 use std::ops::{AddAssign, BitAnd};
-use libgit2_sys as raw;
 use std::fmt::Write;
 
 
@@ -39,10 +38,9 @@ pub struct Stats {
 impl Stats {
     /// Populate stats with the status of the given repository
     pub fn new(repo: &mut git2::Repository) -> Result<Stats, git2::Error> {
-
         let mut st: Stats = Default::default();
 
-        st.branch = Stats::read_branch(repo);
+        st.read_branch(repo);
 
         let mut opts = git2::StatusOptions::new();
 
@@ -53,30 +51,30 @@ impl Stats {
             let statuses = repo.statuses(Some(&mut opts))?;
 
             for status in statuses.iter() {
-                let flags = status.status().bits();
+                let flags = status.status();
 
-                if check(flags, raw::GIT_STATUS_WT_NEW) {
+                if check(flags, git2::STATUS_WT_NEW) {
                     st.untracked += 1;
                 }
-                if check(flags, raw::GIT_STATUS_INDEX_NEW) {
+                if check(flags, git2::STATUS_INDEX_NEW) {
                     st.added_staged += 1;
                 }
-                if check(flags, raw::GIT_STATUS_WT_MODIFIED) {
+                if check(flags, git2::STATUS_WT_MODIFIED) {
                     st.modified += 1;
                 }
-                if check(flags, raw::GIT_STATUS_INDEX_MODIFIED) {
+                if check(flags, git2::STATUS_INDEX_MODIFIED) {
                     st.modified_staged += 1;
                 }
-                if check(flags, raw::GIT_STATUS_INDEX_RENAMED) {
+                if check(flags, git2::STATUS_INDEX_RENAMED) {
                     st.renamed += 1;
                 }
-                if check(flags, raw::GIT_STATUS_WT_DELETED) {
+                if check(flags, git2::STATUS_WT_DELETED) {
                     st.deleted += 1;
                 }
-                if check(flags, raw::GIT_STATUS_INDEX_DELETED) {
+                if check(flags, git2::STATUS_INDEX_DELETED) {
                     st.deleted_staged += 1;
                 }
-                if check(flags, raw::GIT_STATUS_CONFLICTED) {
+                if check(flags, git2::STATUS_CONFLICTED) {
                     st.conflicts += 1;
                 }
             }
@@ -94,8 +92,8 @@ impl Stats {
     ///
     /// If in detached head, grab the first few characters of the commit ID if possible, otherwise
     /// simply provide HEAD as the branch name.  This is to mimic the behaviour of `git status`.
-    fn read_branch(repo: &git2::Repository) -> String {
-        match repo.head() {
+    fn read_branch(&mut self, repo: &git2::Repository) {
+        self.branch = match repo.head() {
             Ok(head) => {
                 if let Some(name) = head.name() {
                     // try to use first 8 characters or so of the ID in detached HEAD
@@ -111,7 +109,6 @@ impl Stats {
                         }
                     // Grab the branch from the reference
                     } else {
-                        eprintln!("full ref: {}", name);
                         name.split("/").last().unwrap_or("").to_string()
                     }
                 } else {
@@ -121,7 +118,7 @@ impl Stats {
             Err(ref err) if err.code() == git2::ErrorCode::BareRepo => "master".to_string(),
             Err(_) if repo.is_empty().unwrap_or(false) => "master".to_string(),
             Err(_) => "HEAD".to_string(),
-        }
+        };
     }
 }
 
