@@ -1,17 +1,13 @@
 //! Format parser, determines the syntax for pretty formats
 
-use nom::IResult;
-use std::str::{self, Utf8Error};
-use ast::{Expression, Tree, Name};
+use ast::{Expression, Tree, Name, Style};
+use nom::{IResult, digit};
+use std::str::{self, Utf8Error, FromStr};
+use std::num::ParseIntError;
 
 named! {
     backslash<&[u8], Name>,
     do_parse!(tag!("\\") >> (Name::Backslash))
-}
-
-named! {
-    color<&[u8], Name>,
-    do_parse!(tag!("c") >> (Name::Color))
 }
 
 named! {
@@ -76,18 +72,6 @@ named! {
 
 
 named! {
-    bold<&[u8], Name>,
-    do_parse!(tag!("*") >> (Name::Bold))
-}
-
-
-named! {
-    underline<&[u8], Name>,
-    do_parse!(tag!("_") >> (Name::Underline))
-}
-
-
-named! {
     remote<&[u8], Name>,
     do_parse!(tag!("B") >> (Name::Remote))
 }
@@ -108,9 +92,6 @@ named! {
     expression_name<&[u8], Name>,
     alt!(
         backslash |
-        color |
-        bold |
-        underline |
         unstaged |
         modified |
         untracked |
@@ -126,6 +107,217 @@ named! {
         remote |
         quote |
         stashed
+    )
+}
+
+
+named! {
+    reset<&[u8], Style>,
+    do_parse!(tag!("~") >> (Style::Reset))
+}
+
+
+named! {
+    bold<&[u8], Style>,
+    do_parse!(tag!("*") >> (Style::Bold))
+}
+
+
+named! {
+    underline<&[u8], Style>,
+    do_parse!(tag!("_") >> (Style::Underline))
+}
+
+
+named! {
+    italic<&[u8], Style>,
+    do_parse!(tag!("i") >> (Style::Italic))
+}
+
+
+named! {
+    fg_red<&[u8], Style>,
+    do_parse!(tag!("r") >> (Style::FgRed))
+}
+
+
+named! {
+    bg_red<&[u8], Style>,
+    do_parse!(tag!("R") >> (Style::BgRed))
+}
+
+
+named! {
+    fg_green<&[u8], Style>,
+    do_parse!(tag!("g") >> (Style::FgGreen))
+}
+
+
+named! {
+    bg_green<&[u8], Style>,
+    do_parse!(tag!("G") >> (Style::BgGreen))
+}
+
+
+named! {
+    fg_yellow<&[u8], Style>,
+    do_parse!(tag!("y") >> (Style::FgYellow))
+}
+
+
+named! {
+    bg_yellow<&[u8], Style>,
+    do_parse!(tag!("Y") >> (Style::BgYellow))
+}
+
+
+named! {
+    fg_blue<&[u8], Style>,
+    do_parse!(tag!("b") >> (Style::FgBlue))
+}
+
+
+named! {
+    bg_blue<&[u8], Style>,
+    do_parse!(tag!("B") >> (Style::BgBlue))
+}
+
+
+named! {
+    fg_magenta<&[u8], Style>,
+    do_parse!(tag!("m") >> (Style::FgMagenta))
+}
+
+
+named! {
+    bg_magenta<&[u8], Style>,
+    do_parse!(tag!("M") >> (Style::BgMagenta))
+}
+
+
+named! {
+    fg_cyan<&[u8], Style>,
+    do_parse!(tag!("c") >> (Style::FgCyan))
+}
+
+
+named! {
+    bg_cyan<&[u8], Style>,
+    do_parse!(tag!("C") >> (Style::BgCyan))
+}
+
+
+named! {
+    fg_white<&[u8], Style>,
+    do_parse!(tag!("w") >> (Style::FgWhite))
+}
+
+
+named! {
+    bg_white<&[u8], Style>,
+    do_parse!(tag!("W") >> (Style::BgWhite))
+}
+
+
+named! {
+    fg_black<&[u8], Style>,
+    do_parse!(tag!("k") >> (Style::FgBlack))
+}
+
+
+named! {
+    bg_black<&[u8], Style>,
+    do_parse!(tag!("K") >> (Style::BgBlack))
+}
+
+
+fn u8_from_bytes(input: &[u8]) -> u8 {
+    let raw = str::from_utf8(input).expect("invalid UTF-8");
+    raw.parse().expect("attempted to parse a value that was not a number")
+}
+
+
+named! {
+    ansi_num <&[u8], u8>,
+    map!(digit, u8_from_bytes)
+}
+
+
+named! {
+    fg_rgb<&[u8], Style>,
+    do_parse!(
+        tag!("[") >>
+        r: ansi_num >>
+        tag!(",") >>
+        g: ansi_num >>
+        tag!(",") >>
+        b: ansi_num >>
+        tag!("]") >>
+        (Style::FgRGB(r,g,b))
+    )
+}
+
+
+named! {
+    bg_rgb<&[u8], Style>,
+    do_parse!(
+        tag!("{") >>
+        r: ansi_num >>
+        tag!(",") >>
+        g: ansi_num >>
+        tag!(",") >>
+        b: ansi_num >>
+        tag!("}") >>
+        (Style::BgRGB(r,g,b))
+    )
+}
+
+
+named! {
+    style<&[u8], Style>,
+    alt!(
+        reset |
+        bold |
+        underline |
+        italic |
+        fg_red |
+        bg_red |
+        fg_green |
+        bg_green |
+        fg_yellow |
+        bg_yellow |
+        fg_blue |
+        bg_blue |
+        fg_magenta |
+        bg_magenta |
+        fg_cyan |
+        bg_cyan |
+        fg_white |
+        bg_white |
+        fg_black |
+        bg_black |
+        fg_rgb |
+        bg_rgb |
+        do_parse!(n: ansi_num >> (Style::Number(n)))
+    )
+}
+
+
+named! {
+    styles<&[u8], Vec<Style>>,
+    separated_list!(tag!(";"), style)
+}
+
+
+fn format_expression(input: &[u8]) -> IResult<&[u8], Expression> {
+    do_parse!(input,
+        tag!("#") >>
+        s: styles >>
+        sub: delimited!(tag!("("), expression_tree, tag!(")")) >>
+        (Expression::Format {
+            style: s,
+            sub: sub,
+        })
     )
 }
 
@@ -262,7 +454,8 @@ pub fn expression(input: &[u8]) -> IResult<&[u8],Expression> {
     alt!(input,
         group_expression |
         literal |
-        named_expression
+        named_expression |
+        format_expression
     )
 }
 
@@ -285,14 +478,17 @@ mod test {
 
     #[test]
     fn japanese_text() {
-        let test = "'日本語は綺麗なのです'\\g('試験'\\*('テスト'))".as_bytes();
+        let test = "'日本語は綺麗なのです'\\g('試験'#*('テスト'))".as_bytes();
         let expect = Tree(vec![
             Expression::Literal("日本語は綺麗なのです".to_string()),
             Expression::Group{ l: "g(".to_string(), r: ")".to_string(), sub: Tree(vec![
                 Expression::Literal("試験".to_string()),
-                Expression::Named { name: Name::Bold, args: Some(vec![
-                    Expression::Literal("テスト".to_string())],
-                )},
+                Expression::Format {
+                    style: vec![Style::Bold],
+                    sub: Tree(vec![
+                        Expression::Literal("テスト".to_string())
+                    ]),
+                },
             ])},
         ]);
         let parse = expression_tree(test).unwrap().1;
@@ -301,9 +497,9 @@ mod test {
 
     #[test]
     fn named_expression_no_args() {
-        let test = b"\\*";
+        let test = b"\\h";
         let expect = Expression::Named {
-            name: Name::Bold,
+            name: Name::Stashed,
             args: None,
         };
         let parse = named_expression(test).unwrap().1;
@@ -312,9 +508,9 @@ mod test {
 
     #[test]
     fn named_expression_empty_args() {
-        let test = b"\\*()";
+        let test = b"\\b()";
         let expect = Expression::Named {
-            name: Name::Bold,
+            name: Name::Branch,
             args: Some(vec![]),
         };
         let parse = named_expression(test).unwrap().1;
@@ -323,11 +519,11 @@ mod test {
 
     #[test]
     fn named_expression_1_arg() {
-        let test = b"\\*(\\_)";
+        let test = b"\\b(\\+)";
         let expect = Expression::Named {
-            name: Name::Bold,
+            name: Name::Branch,
             args: Some(vec![
-                Expression::Named { name: Name::Underline, args: None },
+                Expression::Named { name: Name::Ahead, args: None },
             ]),
         };
         let parse = named_expression(test).unwrap().1;
@@ -336,15 +532,49 @@ mod test {
 
     #[test]
     fn named_expression_2_arg() {
-        let test = b"\\c('blue','..')";
+        let test = b"\\b(\\+,\\-)";
         let expect = Expression::Named {
-            name: Name::Color,
+            name: Name::Branch,
             args: Some(vec![
-                Expression::Literal("blue".to_string()),
-                Expression::Literal("..".to_string()),
+                Expression::Named { name: Name::Ahead, args: None},
+                Expression::Named { name: Name::Behind, args: None},
             ])
         };
         let parse = named_expression(test).unwrap().1;
+        assert!(parse == expect, "{:?} != {:?}", parse, expect);
+    }
+
+    #[test]
+    fn format_number() {
+        let test = b"#1;42(\\b\\B)";
+        let expect = Expression::Format {
+            style: vec![Style::Number(1), Style::Number(42)],
+            sub: Tree(vec![
+                Expression::Named { name: Name::Branch, args: None},
+                Expression::Named { name: Name::Remote, args: None},
+            ])
+        };
+        let parse = match expression(test) {
+            IResult::Done(_, exp) => exp,
+            fail @ _ => panic!("Failed to parse with result {:?}", fail),
+        };
+        assert!(parse == expect, "{:?} != {:?}", parse, expect);
+    }
+
+    #[test]
+    fn format_rgb() {
+        let test = b"#[42,0,0];{0,0,42}(\\b\\B)";
+        let expect = Expression::Format {
+            style: vec![Style::FgRGB(42,0,0), Style::BgRGB(0,0,42)],
+            sub: Tree(vec![
+                Expression::Named { name: Name::Branch, args: None},
+                Expression::Named { name: Name::Remote, args: None},
+            ])
+        };
+        let parse = match expression(test) {
+            IResult::Done(_, exp) => exp,
+            fail @ _ => panic!("Failed to parse with result {:?}", fail),
+        };
         assert!(parse == expect, "{:?} != {:?}", parse, expect);
     }
 
@@ -364,12 +594,15 @@ mod test {
 
     #[test]
     fn disp() {
-        let test = b"\\('quoted literal'\\*(\\g(\\b\\B)))";
-        let expect = str::from_utf8(test).unwrap();
-        let parse = expression_tree(test).unwrap().1;
+        let test = b"\\('quoted literal'#*(\\b\\B))";
+        let expect = str::from_utf8(test).expect("Invalid utf-8");
+        let parse = match expression_tree(test) {
+            IResult::Done(_, exp) => exp,
+            fail @ _ => panic!("Failed to parse with result {:?}", fail),
+        };
         assert!(format!("{}", parse) == expect, "{} == {}\n\tparsed {:?}", parse, expect, parse);
 
-        let test = b"\\c('blue',\\g(\\b\\B),'')";
+        let test = b"#b(\\b\\B)";
         let expect = str::from_utf8(test).unwrap();
         let parse = expression_tree(test).unwrap().1;
         assert!(format!("{}", parse) == expect, "{} == {}\n\tparsed {:?}", parse, expect, parse);

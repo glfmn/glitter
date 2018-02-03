@@ -65,16 +65,14 @@ impl Interpreter {
     }
 
     fn interpret(&self, exp: &Expression) -> InterpretResult {
-        use ast::Expression::{Named, Group, Literal};
+        use ast::Expression::{Named, Group, Literal, Format};
         use ast::Name::*;
 
         let val = match exp {
             &Named { ref name, ref args } => {
                 match name {
                     &Backslash => self.interpret_backslash(args)?,
-                    &Color => self.interpret_color(args)?,
-                    &Bold => self.interpret_bold(args)?,
-                    &Underline => self.interpret_underline(args)?,
+                    &Quote => self.interpret_quote(args)?,
                     name @ &Branch => self.optional_prefix(args, *name, self.stats.branch.clone(), "")?,
                     name @ &Remote => self.optional_prefix(args, *name, self.stats.remote.clone(), "")?,
                     name @ &Ahead => self.optional_prefix(args, *name, self.stats.ahead, "+")?,
@@ -88,7 +86,6 @@ impl Interpreter {
                     name @ &DeletedStaged => self.optional_prefix(args, *name, self.stats.deleted_staged, "D")?,
                     name @ &Renamed => self.optional_prefix(args, *name, self.stats.renamed, "R")?,
                     name @ &RenamedStaged => self.optional_prefix(args, *name, self.stats.renamed, "R")?,
-                    &Quote => self.interpret_quote(args)?,
                     name @ &Stashed => self.optional_prefix(args, *name, self.stats.stashes, "H")?,
                 }
             },
@@ -109,6 +106,14 @@ impl Interpreter {
                 }
             },
             &Literal(ref literal) => literal.to_string(),
+            &Format { ref style, ref sub } => {
+                let sub = self.evaluate(&sub)?;
+                if sub.is_empty() {
+                    String::new()
+                } else {
+                    sub
+                }
+            },
         };
 
         Ok(val)
@@ -166,88 +171,29 @@ impl Interpreter {
     }
 
     #[inline(always)]
-    fn interpret_color(&self, args: &Option<Vec<Expression>>) -> InterpretResult {
+    fn interpret_newline(&self, args: &Option<Vec<Expression>>) -> InterpretResult {
         match args {
-            &Some(ref args) if args.len() == 2 => {
-                self.interpret(&args[1])
-            },
-            &None => Err(InterpreterErr::ArgErr {
+            &None => Ok("\n".to_string()),
+            &Some(_) => Err(InterpreterErr::ArgErr {
                 exp: Expression::Named {
                     name: Name::Quote,
-                    args: args.clone()
+                    args: args.clone(),
                 },
-                reason: ArgErr::UnexpectedCount {
-                    expected: 2,
-                    found: 0,
-                },
-            }),
-            &Some(ref args) => Err(InterpreterErr::ArgErr {
-                exp: Expression::Named {
-                    name: Name::Quote,
-                    args: Some(args.to_vec())
-                },
-                reason: ArgErr::UnexpectedCount {
-                    expected: 2,
-                    found: args.len() as u8,
-                },
+                reason: ArgErr::UnexpectedArgs,
             }),
         }
     }
 
     #[inline(always)]
-    fn interpret_bold(&self, args: &Option<Vec<Expression>>) -> InterpretResult {
+    fn interpret_tab(&self, args: &Option<Vec<Expression>>) -> InterpretResult {
         match args {
-            &Some(ref args) if args.len() == 1 => {
-                self.interpret(&args[0])
-            },
-            &None => Err(InterpreterErr::ArgErr {
+            &None => Ok("\t".to_string()),
+            &Some(_) => Err(InterpreterErr::ArgErr {
                 exp: Expression::Named {
                     name: Name::Quote,
                     args: args.clone(),
                 },
-                reason: ArgErr::UnexpectedCount {
-                    expected: 1,
-                    found: 0,
-                },
-            }),
-            &Some(ref args) => Err(InterpreterErr::ArgErr {
-                exp: Expression::Named {
-                    name: Name::Quote,
-                    args: Some(args.to_vec())
-                },
-                reason: ArgErr::UnexpectedCount {
-                    expected: 1,
-                    found: args.len() as u8,
-                },
-            }),
-        }
-    }
-
-    #[inline(always)]
-    fn interpret_underline(&self, args: &Option<Vec<Expression>>) -> InterpretResult {
-        match args {
-            &Some(ref args) if args.len() == 1 => {
-                self.interpret(&args[0])
-            },
-            &None => Err(InterpreterErr::ArgErr {
-                exp: Expression::Named {
-                    name: Name::Quote,
-                    args: args.clone(),
-                },
-                reason: ArgErr::UnexpectedCount {
-                    expected: 1,
-                    found: 0,
-                },
-            }),
-            &Some(ref args) => Err(InterpreterErr::ArgErr {
-                exp: Expression::Named {
-                    name: Name::Quote,
-                    args: Some(args.to_vec())
-                },
-                reason: ArgErr::UnexpectedCount {
-                    expected: 1,
-                    found: args.len() as u8,
-                },
+                reason: ArgErr::UnexpectedArgs,
             }),
         }
     }
@@ -258,40 +204,30 @@ impl Interpreter {
 mod test {
 
     use super::*;
+    use ast::{Name, Expression, Tree, Style};
+    use quickcheck::TestResult;
 
     quickcheck! {
 
-        fn empty_stats_empty_result(name: ::ast::Name) -> bool {
+        fn empty_stats_empty_result(name: Name) -> TestResult {
             let stats: ::git::Stats = Default::default();
 
             let interpreter = Interpreter::new(stats);
 
-            let empty = ::ast::Expression::Literal(String::new());
-
             // Create valid expressions with empty arguments if arguments are necessary, and
             // replace expressions which always return a value with empty literals
             let exp = match name {
-                ::ast::Name::Color => {
-                    ::ast::Expression::Named {
-                        name: name,
-                        args: Some(vec![empty.clone(), empty]),
-                    }
-                },
-                ::ast::Name::Backslash | ::ast::Name::Quote => {
-                    ::ast::Expression::Literal(String::new())
-                },
-                _ => {
-                    ::ast::Expression::Named { name: name, args: None, }
-                }
+                Name::Quote | Name::Backslash => return TestResult::discard(),
+                name @ _ => Expression::Named { name, args: None },
             };
 
-            match interpreter.evaluate(&::ast::Tree(vec![exp.clone()])) {
+            match interpreter.evaluate(&Tree(vec![exp.clone()])) {
                 Ok(res) => {
                     println!("interpreted {} as {}", exp, res);
-                    res.is_empty()
+                    TestResult::from_bool(res.is_empty())
                 },
                 Err(_) => {
-                    true
+                    TestResult::discard()
                 }
             }
         }
