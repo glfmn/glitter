@@ -1,4 +1,5 @@
 use git2;
+use git2::BranchType;
 use std::ops::{AddAssign, BitAnd};
 use std::fmt::Write;
 
@@ -99,17 +100,35 @@ impl Stats {
                     // try to use first 8 characters or so of the ID in detached HEAD
                     if name == "HEAD" {
                         if let Ok(commit) = head.peel_to_commit() {
-                            let mut s = String::new();
+                            let mut id = String::new();
                             for byte in &commit.id().as_bytes()[..4] {
-                                write!(&mut s, "{:x}", byte).unwrap();
+                                write!(&mut id, "{:x}", byte).unwrap();
                             }
-                            s
+                            id
                         } else {
                             "HEAD".to_string()
                         }
                     // Grab the branch from the reference
                     } else {
-                        name.split("/").last().unwrap_or("").to_string()
+                        let branch = name.split("/").last().unwrap_or("").to_string();
+                        // Since we have a branch name, look for the name of the upstream branch
+                        // Grab the branch from the name
+                        let upstream = match repo.find_branch(&branch, BranchType::Local) {
+                            Ok(branch) => {
+                                // Grab the upstream from the branch
+                                match branch.upstream() {
+                                    // Grab the name of the upstream if it's valid UTF-8
+                                    Ok(upstream) => match upstream.name() {
+                                        Ok(Some(name)) => name.to_string(),
+                                        _ => String::new(),
+                                    }
+                                    _ => String::new(),
+                                }
+                            },
+                            _ => String::new(),
+                        };
+                        self.remote = upstream;
+                        branch
                     }
                 } else {
                     "HEAD".to_string()
