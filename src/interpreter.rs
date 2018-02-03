@@ -13,22 +13,10 @@ pub struct Interpreter {
 
 
 pub enum InterpreterErr {
-    ArgErr {
+    UnexpectedArgs {
         exp: Expression,
-        reason: ArgErr,
     },
 }
-
-
-pub enum ArgErr {
-    UnexpectedArgs,
-    UnexpectedCount {
-        expected: u8,
-        found: u8,
-    },
-    InvalidArg(Expression),
-}
-
 
 type InterpretResult = Result<String, InterpreterErr>;
 
@@ -74,22 +62,22 @@ impl Interpreter {
         let val = match exp {
             &Named { ref name, ref sub } => {
                 match name {
-                    &Backslash => self.interpret_backslash(sub)?,
-                    &Quote => self.interpret_quote(sub)?,
-                    name @ &Branch => self.optional_prefix(sub, *name, self.stats.branch.clone(), "")?,
-                    name @ &Remote => self.optional_prefix(sub, *name, self.stats.remote.clone(), "")?,
-                    name @ &Ahead => self.optional_prefix(sub, *name, self.stats.ahead, "+")?,
-                    name @ &Behind => self.optional_prefix(sub, *name, self.stats.behind, "-")?,
-                    name @ &Conflict => self.optional_prefix(sub, *name, self.stats.conflicts, "U")?,
-                    name @ &Added => self.optional_prefix(sub, *name, self.stats.added_staged, "A")?,
-                    name @ &Untracked => self.optional_prefix(sub, *name, self.stats.untracked, "?")?,
-                    name @ &Modified => self.optional_prefix(sub, *name, self.stats.modified_staged, "M")?,
-                    name @ &Unstaged => self.optional_prefix(sub, *name, self.stats.modified, "M")?,
-                    name @ &Deleted => self.optional_prefix(sub, *name, self.stats.deleted, "D")?,
-                    name @ &DeletedStaged => self.optional_prefix(sub, *name, self.stats.deleted_staged, "D")?,
-                    name @ &Renamed => self.optional_prefix(sub, *name, self.stats.renamed, "R")?,
-                    name @ &RenamedStaged => self.optional_prefix(sub, *name, self.stats.renamed, "R")?,
-                    name @ &Stashed => self.optional_prefix(sub, *name, self.stats.stashes, "H")?,
+                    &Backslash => self.interpret_literal(sub, "\\")?,
+                    &Quote => self.interpret_literal(sub, "'")?,
+                    &Branch => self.optional_prefix(sub, self.stats.branch.clone(), "")?,
+                    &Remote => self.optional_prefix(sub, self.stats.remote.clone(), "")?,
+                    &Ahead => self.optional_prefix(sub, self.stats.ahead, "+")?,
+                    &Behind => self.optional_prefix(sub, self.stats.behind, "-")?,
+                    &Conflict => self.optional_prefix(sub, self.stats.conflicts, "U")?,
+                    &Added => self.optional_prefix(sub, self.stats.added_staged, "A")?,
+                    &Untracked => self.optional_prefix(sub, self.stats.untracked, "?")?,
+                    &Modified => self.optional_prefix(sub, self.stats.modified_staged, "M")?,
+                    &Unstaged => self.optional_prefix(sub, self.stats.modified, "M")?,
+                    &Deleted => self.optional_prefix(sub, self.stats.deleted, "D")?,
+                    &DeletedStaged => self.optional_prefix(sub, self.stats.deleted_staged, "D")?,
+                    &Renamed => self.optional_prefix(sub, self.stats.renamed, "R")?,
+                    &RenamedStaged => self.optional_prefix(sub, self.stats.renamed, "R")?,
+                    &Stashed => self.optional_prefix(sub, self.stats.stashes, "H")?,
                 }
             },
             &Group { ref l, ref r, ref sub } if l == "g(" && r == ")" => {
@@ -109,7 +97,7 @@ impl Interpreter {
                 }
             },
             &Literal(ref literal) => literal.to_string(),
-            &Format { ref style, ref sub } => {
+            &Format { style: _, ref sub } => {
                 let sub = self.evaluate(&sub)?;
                 if sub.is_empty() {
                     String::new()
@@ -125,78 +113,27 @@ impl Interpreter {
     #[inline(always)]
     fn optional_prefix<V1: fmt::Display + Empty, V2: fmt::Display>(&self,
         sub: &Tree,
-        name: Name,
         val: V1,
         prefix: V2,
      ) -> InterpretResult {
         if val.is_empty() { return Ok(String::new()) };
         match sub.0.len() {
             0 => Ok(format!("{}{}", prefix, val)),
-            1 => {
+            _ => {
                 Ok(format!("{}{}", self.evaluate(sub)?, val))
-            },
-            _ => Err(InterpreterErr::ArgErr {
-                exp: Expression::Named {
-                    name: name,
-                    sub: sub.clone()
-                },
-                reason: ArgErr::UnexpectedCount{ expected: 1, found: sub.0.len() as u8 },
-            }),
+            }
         }
     }
 
     #[inline(always)]
-    fn interpret_backslash(&self, sub: &Tree) -> InterpretResult {
+    fn interpret_literal(&self, sub: &Tree, literal: &str) -> InterpretResult {
         match sub.0.len() {
-            0 => Ok("\\".to_string()),
-            _ => Err(InterpreterErr::ArgErr {
+            0 => Ok(literal.to_string()),
+            _ => Err(InterpreterErr::UnexpectedArgs {
                 exp: Expression::Named {
                     name: Name::Quote,
                     sub: sub.clone(),
                 },
-                reason: ArgErr::UnexpectedArgs,
-            }),
-        }
-    }
-
-    #[inline(always)]
-    fn interpret_quote(&self, sub: &Tree) -> InterpretResult {
-        match sub.0.len() {
-            0 => Ok("'".to_string()),
-            _ => Err(InterpreterErr::ArgErr {
-                exp: Expression::Named {
-                    name: Name::Quote,
-                    sub: sub.clone(),
-                },
-                reason: ArgErr::UnexpectedArgs,
-            }),
-        }
-    }
-
-    #[inline(always)]
-    fn interpret_newline(&self, sub: &Tree) -> InterpretResult {
-        match sub.0.len() {
-            0 => Ok("\n".to_string()),
-            _ => Err(InterpreterErr::ArgErr {
-                exp: Expression::Named {
-                    name: Name::Quote,
-                    sub: sub.clone(),
-                },
-                reason: ArgErr::UnexpectedArgs,
-            }),
-        }
-    }
-
-    #[inline(always)]
-    fn interpret_tab(&self, sub: &Tree) -> InterpretResult {
-        match sub.0.len() {
-            0 => Ok("\t".to_string()),
-            _ => Err(InterpreterErr::ArgErr {
-                exp: Expression::Named {
-                    name: Name::Quote,
-                    sub: sub.clone(),
-                },
-                reason: ArgErr::UnexpectedArgs,
             }),
         }
     }
@@ -212,7 +149,6 @@ mod test {
     use quickcheck::TestResult;
 
     quickcheck! {
-
         fn empty_stats_empty_result(name: Name) -> TestResult {
             let stats: Stats = Default::default();
 
