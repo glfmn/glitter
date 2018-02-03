@@ -12,6 +12,8 @@ pub struct Interpreter {
 }
 
 
+/// Various types of Interpreter errors
+#[derive(PartialEq, Eq, Clone)]
 pub enum InterpreterErr {
     UnexpectedArgs {
         exp: Expression,
