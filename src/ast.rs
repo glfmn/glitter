@@ -23,7 +23,6 @@ pub enum Name {
     Deleted,
     DeletedStaged,
     Renamed,
-    RenamedStaged,
     Stashed,
     Quote,
 }
@@ -44,8 +43,7 @@ impl fmt::Display for Name {
             &Name::Unstaged => "m",
             &Name::Deleted => "d",
             &Name::DeletedStaged => "D",
-            &Name::Renamed => "r",
-            &Name::RenamedStaged => "R",
+            &Name::Renamed => "R",
             &Name::Backslash => "\\",
             &Name::Quote => "\'",
         };

@@ -55,20 +55,13 @@ named! {
 
 named! {
     renamed<&[u8], Name>,
-    do_parse!(tag!("r") >> (Name::Renamed))
+    do_parse!(tag!("R") >> (Name::Renamed))
 }
-
-named! {
-    renamed_staged<&[u8], Name>,
-    do_parse!(tag!("R") >> (Name::RenamedStaged))
-}
-
 
 named! {
     branch<&[u8], Name>,
     do_parse!(tag!("b") >> (Name::Branch))
 }
-
 
 named! {
     remote<&[u8], Name>,
@@ -79,7 +72,6 @@ named! {
     quote<&[u8], Name>,
     do_parse!(tag!("\'") >> (Name::Quote))
 }
-
 
 named! {
     stashed<&[u8], Name>,
@@ -101,7 +93,6 @@ named! {
         deleted |
         deleted_staged |
         renamed |
-        renamed_staged |
         branch |
         remote |
         quote |

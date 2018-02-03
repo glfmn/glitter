@@ -76,7 +76,6 @@ impl Interpreter {
                     &Deleted => self.optional_prefix(sub, self.stats.deleted, "D")?,
                     &DeletedStaged => self.optional_prefix(sub, self.stats.deleted_staged, "D")?,
                     &Renamed => self.optional_prefix(sub, self.stats.renamed, "R")?,
-                    &RenamedStaged => self.optional_prefix(sub, self.stats.renamed, "R")?,
                     &Stashed => self.optional_prefix(sub, self.stats.stashes, "H")?,
                 }
             },
