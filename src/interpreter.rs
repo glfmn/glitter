@@ -20,10 +20,13 @@ pub enum InterpreterErr {
     },
 }
 
+
 type InterpretResult = Result<String, InterpreterErr>;
 
 
-/// Trait which determines what an empty result should be
+/// Trait which determines what is empty in the eyes of the Interpreter
+///
+/// The interpreter simply ignores the macros which correspond to "empty" values.
 trait Empty {
     fn is_empty(&self) -> bool;
 }
