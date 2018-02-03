@@ -2,8 +2,7 @@
 
 use ast::{Expression, Tree, Name, Style};
 use nom::{IResult, digit};
-use std::str::{self, Utf8Error, FromStr};
-use std::num::ParseIntError;
+use std::str::{self, Utf8Error};
 
 named! {
     backslash<&[u8], Name>,
@@ -369,30 +368,21 @@ named! {
     )
 }
 
+
 fn literal(input: &[u8]) -> IResult<&[u8], Expression> {
     do_parse!(input, s: string >> (Expression::Literal(s)))
 }
 
-named! {
-    expression_args<&[u8], Vec<Expression> >,
-    ws!(
-        delimited!(
-            tag!("("),
-            separated_list!(tag!(","), expression),
-            tag!(")")
-        )
-    )
-}
 
 /// Parse a valid named expression
 fn named_expression(input: &[u8]) -> IResult<&[u8], Expression> {
     do_parse!(input,
         tag!("\\") >>
         n: expression_name >>
-        a: opt!(complete!(expression_args)) >>
-        (Expression::Named {
-            name: n,
-            args: a,
+        a: opt!(complete!(delimited!(tag!("("), expression_tree, tag!(")")))) >>
+        (match a {
+            Some(a) => Expression::Named { name: n, sub: a },
+            None => Expression::Named { name: n, sub: Tree::new() },
         })
     )
 }
@@ -401,13 +391,6 @@ fn named_expression(input: &[u8]) -> IResult<&[u8], Expression> {
 /// Parse a valid group expression
 fn group_expression(input: &[u8]) -> IResult<&[u8], Expression> {
     alt!(input,
-        delimited!(tag!("\\g("), expression_tree ,tag!(")")) => {
-            |sub: Tree| Expression::Group {
-                l: "g(".to_string(),
-                r: ")".to_string(),
-                sub: sub
-            }
-        } |
         delimited!(tag!("\\("), expression_tree ,tag!(")")) => {
             |sub: Tree| Expression::Group {
                 l: "(".to_string(),
@@ -478,10 +461,10 @@ mod test {
 
     #[test]
     fn japanese_text() {
-        let test = "'日本語は綺麗なのです'\\g('試験'#*('テスト'))".as_bytes();
+        let test = "'日本語は綺麗なのです'\\['試験'#*('テスト')]".as_bytes();
         let expect = Tree(vec![
             Expression::Literal("日本語は綺麗なのです".to_string()),
-            Expression::Group{ l: "g(".to_string(), r: ")".to_string(), sub: Tree(vec![
+            Expression::Group{ l: "[".to_string(), r: "]".to_string(), sub: Tree(vec![
                 Expression::Literal("試験".to_string()),
                 Expression::Format {
                     style: vec![Style::Bold],
@@ -500,7 +483,7 @@ mod test {
         let test = b"\\h";
         let expect = Expression::Named {
             name: Name::Stashed,
-            args: None,
+            sub: Tree::new(),
         };
         let parse = named_expression(test).unwrap().1;
         assert!(parse == expect, "{:?} != {:?}", parse, expect);
@@ -511,9 +494,12 @@ mod test {
         let test = b"\\b()";
         let expect = Expression::Named {
             name: Name::Branch,
-            args: Some(vec![]),
+            sub: Tree::new(),
         };
-        let parse = named_expression(test).unwrap().1;
+        let parse = match named_expression(test) {
+            IResult::Done(_, exp) => exp,
+            fail @ _ => panic!("Failed to parse with result {:?}", fail),
+        };
         assert!(parse == expect, "{:?} != {:?}", parse, expect);
     }
 
@@ -522,25 +508,31 @@ mod test {
         let test = b"\\b(\\+)";
         let expect = Expression::Named {
             name: Name::Branch,
-            args: Some(vec![
-                Expression::Named { name: Name::Ahead, args: None },
+            sub: Tree(vec![
+                Expression::Named { name: Name::Ahead, sub: Tree::new() },
             ]),
         };
-        let parse = named_expression(test).unwrap().1;
+        let parse = match named_expression(test) {
+            IResult::Done(_, exp) => exp,
+            fail @ _ => panic!("Failed to parse with result {:?}", fail),
+        };
         assert!(parse == expect, "{:?} != {:?}", parse, expect);
     }
 
     #[test]
     fn named_expression_2_arg() {
-        let test = b"\\b(\\+,\\-)";
+        let test = b"\\b(\\+\\-)";
         let expect = Expression::Named {
             name: Name::Branch,
-            args: Some(vec![
-                Expression::Named { name: Name::Ahead, args: None},
-                Expression::Named { name: Name::Behind, args: None},
-            ])
+            sub: Tree(vec![
+                Expression::Named { name: Name::Ahead, sub: Tree::new()},
+                Expression::Named { name: Name::Behind, sub: Tree::new()},
+            ]),
         };
-        let parse = named_expression(test).unwrap().1;
+        let parse = match named_expression(test) {
+            IResult::Done(_, exp) => exp,
+            fail @ _ => panic!("Failed to parse with result {:?}", fail),
+        };
         assert!(parse == expect, "{:?} != {:?}", parse, expect);
     }
 
@@ -550,11 +542,11 @@ mod test {
         let expect = Expression::Format {
             style: vec![Style::Number(1), Style::Number(42)],
             sub: Tree(vec![
-                Expression::Named { name: Name::Branch, args: None},
-                Expression::Named { name: Name::Remote, args: None},
+                Expression::Named { name: Name::Branch, sub: Tree::new()},
+                Expression::Named { name: Name::Remote, sub: Tree::new()},
             ])
         };
-        let parse = match expression(test) {
+        let parse = match format_expression(test) {
             IResult::Done(_, exp) => exp,
             fail @ _ => panic!("Failed to parse with result {:?}", fail),
         };
@@ -567,11 +559,11 @@ mod test {
         let expect = Expression::Format {
             style: vec![Style::FgRGB(42,0,0), Style::BgRGB(0,0,42)],
             sub: Tree(vec![
-                Expression::Named { name: Name::Branch, args: None},
-                Expression::Named { name: Name::Remote, args: None},
+                Expression::Named { name: Name::Branch, sub: Tree::new()},
+                Expression::Named { name: Name::Remote, sub: Tree::new()},
             ])
         };
-        let parse = match expression(test) {
+        let parse = match format_expression(test) {
             IResult::Done(_, exp) => exp,
             fail @ _ => panic!("Failed to parse with result {:?}", fail),
         };
@@ -580,15 +572,17 @@ mod test {
 
     #[test]
     fn empty_group_expression() {
-        let test = b"\\{}\\()\\[]\\g()\\<>";
+        let test = b"\\{}\\()\\[]\\<>";
         let expect = Tree(vec![
-            Expression::Group {l: "{".to_string(), r: "}".to_string(), sub: Tree(vec![])},
-            Expression::Group {l: "(".to_string(), r: ")".to_string(), sub: Tree(vec![])},
-            Expression::Group {l: "[".to_string(), r: "]".to_string(), sub: Tree(vec![])},
-            Expression::Group {l: "g(".to_string(), r: ")".to_string(), sub: Tree(vec![])},
-            Expression::Group {l: "<".to_string(), r: ">".to_string(), sub: Tree(vec![])},
+            Expression::Group {l: "{".to_string(), r: "}".to_string(), sub: Tree::new()},
+            Expression::Group {l: "(".to_string(), r: ")".to_string(), sub: Tree::new()},
+            Expression::Group {l: "[".to_string(), r: "]".to_string(), sub: Tree::new()},
+            Expression::Group {l: "<".to_string(), r: ">".to_string(), sub: Tree::new()},
         ]);
-        let parse = expression_tree(test).unwrap().1;
+        let parse = match expression_tree(test) {
+            IResult::Done(_, exp) => exp,
+            fail @ _ => panic!("Failed to parse with result {:?}", fail),
+        };
         assert!(parse == expect, "{:?} != {:?}", parse, expect);
     }
 

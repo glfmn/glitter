@@ -167,11 +167,10 @@ impl Arbitrary for Style {
 /// The interpreter transforms these expressions to their final output after they have been
 /// parsed from the input string.
 ///
-/// **Named expressions** take one of two forms: the plain form with no arguments, or with a list
-/// of arguments, comma seperated.
+/// **Named expressions** take one of two forms: the plain form with no arguments, or with arguments
 ///
 /// - `\name` plain form
-/// - `\name(exp1,exp2,...,expn)` with expressions as arguments, comma seperated.
+/// - `\name(\exp1\exp2...\expn)` any number of expressions, no separaters
 ///
 /// **Group expressions** are set of expressions, which are not comma seperated.  There are a few
 /// base group types:
@@ -180,14 +179,6 @@ impl Arbitrary for Style {
 /// - `\{}` curly braces - wrap with curly braces
 /// - `\[]` square brackets - wrap contents with square brackets
 /// - `\<>` angle brackets - wrap contenst with angle brackets
-/// - `\g()` bare group - do not wrap contents with anything
-///
-/// The base of all gist expressions is an implicit bare group.  Thus, the following is a valid
-/// gist expression even though expressions are next to each-other without an explicit bare group.
-///
-/// ```txt
-/// \(\*(\b\B)\+\-)\[\A\M\D\R]\{\h('@')}'~'
-/// ```
 ///
 /// By nesting groups of expressions, we can create an implicit tree.
 ///
@@ -204,7 +195,7 @@ pub enum Expression {
         /// Name of the expression
         name: Name,
         /// Arguments to the expression, zero or more
-        args: Option<Vec<Expression>>,
+        sub: Tree,
     },
     /// An expression which represents terminal text formatting
     Format {
@@ -230,13 +221,13 @@ impl Rand for Expression {
         use self::Expression::{ Named, Literal, Group, Format };
         match rng.gen_range(0, 5) {
             0 => {
-                let mut args = Vec::new();
+                let mut sub = Vec::new();
                 while let Some(e) = Option::<Expression>::rand(rng) {
-                    args.push(e);
+                    sub.push(e);
                 }
-                Named { name: Name::rand(rng), args: Some(args) }
+                Named { name: Name::rand(rng), sub: Tree(sub) }
             },
-            1 => Named { name: Name::rand(rng), args: None },
+            1 => Named { name: Name::rand(rng), sub: Tree(Vec::new()) },
             2 => {
                 let mut s = Vec::new();
                 while let Some(c) = Option::<u8>::rand(rng) {
@@ -263,11 +254,10 @@ impl Rand for Expression {
                 while let Some(e) = Option::<Expression>::rand(rng) {
                     sub.push(e);
                 }
-                match rng.gen_range(0, 5) {
+                match rng.gen_range(0, 4) {
                     0 => Group {l: "{".to_string(), r: "}".to_string(), sub: Tree(sub)},
                     1 => Group {l: "(".to_string(), r: ")".to_string(), sub: Tree(sub)},
                     2 => Group {l: "[".to_string(), r: "]".to_string(), sub: Tree(sub)},
-                    3 => Group {l: "g(".to_string(), r: ")".to_string(), sub: Tree(sub)},
                     _ => Group {l: "<".to_string(), r: ">".to_string(), sub: Tree(sub)},
                 }
             }
@@ -287,21 +277,13 @@ impl Arbitrary for Expression {
 impl fmt::Display for Expression {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            &Expression::Named { ref name, ref args } => {
+            &Expression::Named { ref name, ref sub } => {
                 write!(f, "\\{}", name)?;
-                match args {
-                    &None => Ok(()),
-                    &Some(ref args) => {
-                        write!(f, "(")?;
-                        if let Some((first, es)) = args.split_first() {
-                            write!(f, "{}", first)?;
-                            for e in es {
-                                write!(f, ",{}", e)?;
-                            }
-                        }
-                        write!(f, ")")?;
-                        Ok(())
-                    }
+                if sub.0.is_empty() {
+                    Ok(())
+                } else {
+                    write!(f, "({})", sub)?;
+                    Ok(())
                 }
             },
             &Expression::Group { ref l, ref r, ref sub } => {
@@ -329,6 +311,14 @@ impl fmt::Display for Expression {
 /// implement.  May combine them in the future.
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Tree(pub Vec<Expression>);
+
+
+impl Tree {
+    /// Create an empty tree
+    pub fn new() -> Tree {
+        Tree(Vec::new())
+    }
+}
 
 
 impl Rand for Tree {
