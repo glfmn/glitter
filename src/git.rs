@@ -112,22 +112,7 @@ impl Stats {
                     } else {
                         let branch = name.split("/").last().unwrap_or("").to_string();
                         // Since we have a branch name, look for the name of the upstream branch
-                        // Grab the branch from the name
-                        let upstream = match repo.find_branch(&branch, BranchType::Local) {
-                            Ok(branch) => {
-                                // Grab the upstream from the branch
-                                match branch.upstream() {
-                                    // Grab the name of the upstream if it's valid UTF-8
-                                    Ok(upstream) => match upstream.name() {
-                                        Ok(Some(name)) => name.to_string(),
-                                        _ => String::new(),
-                                    }
-                                    _ => String::new(),
-                                }
-                            },
-                            _ => String::new(),
-                        };
-                        self.remote = upstream;
+                        self.read_upstream_name(repo, &branch);
                         branch
                     }
                 } else {
@@ -138,6 +123,43 @@ impl Stats {
             Err(_) if repo.is_empty().unwrap_or(false) => "master".to_string(),
             Err(_) => "HEAD".to_string(),
         };
+    }
+
+
+    /// Read name of the upstream branch
+    fn read_upstream_name(&mut self, repo: &Repository, branch: &str) {
+        // First grab branch from the name
+        self.remote = match repo.find_branch(branch, BranchType::Local) {
+            Ok(branch) => {
+                // Grab the upstream from the branch
+                match branch.upstream() {
+                    // Grab the name of the upstream if it's valid UTF-8
+                    Ok(upstream) => {
+                        // While we have the upstream branch, traverse the graph and count
+                        // ahead-behind commits.
+                        self.read_ahead_behind(repo, &branch, &upstream);
+
+                        match upstream.name() {
+                            Ok(Some(name)) => name.to_string(),
+                            _ => String::new(),
+                        }
+                    }
+                    _ => String::new(),
+                }
+            },
+            _ => String::new(),
+        };
+    }
+
+
+    /// Read ahead-behind information between the local and upstream branches
+    fn read_ahead_behind(&mut self, repo: &Repository, local: &Branch, upstream: &Branch) {
+        if let (Some(local), Some(upstream)) = (local.get().target(), upstream.get().target()) {
+            if let Ok((ahead, behind)) = repo.graph_ahead_behind(local, upstream) {
+                self.ahead = ahead as u16;
+                self.behind = behind as u16;
+            }
+        }
     }
 }
 
