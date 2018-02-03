@@ -1,5 +1,5 @@
 use git2;
-use git2::BranchType;
+use git2::{Repository, Branch, BranchType};
 use std::ops::{AddAssign, BitAnd};
 use std::fmt::Write;
 
@@ -38,7 +38,7 @@ pub struct Stats {
 
 impl Stats {
     /// Populate stats with the status of the given repository
-    pub fn new(repo: &mut git2::Repository) -> Result<Stats, git2::Error> {
+    pub fn new(repo: &mut Repository) -> Result<Stats, git2::Error> {
         let mut st: Stats = Default::default();
 
         st.read_branch(repo);
@@ -93,7 +93,7 @@ impl Stats {
     ///
     /// If in detached head, grab the first few characters of the commit ID if possible, otherwise
     /// simply provide HEAD as the branch name.  This is to mimic the behaviour of `git status`.
-    fn read_branch(&mut self, repo: &git2::Repository) {
+    fn read_branch(&mut self, repo: &Repository) {
         self.branch = match repo.head() {
             Ok(head) => {
                 if let Some(name) = head.name() {
