@@ -1,6 +1,6 @@
 //! gist, a git repository status pretty-printer
 //!
-//! An expression based, ergonomic langauge for writing the status of your git repository into
+//! An expression based, ergonomic language for writing the status of your git repository into
 //! your shell prompt.
 //!
 //! For example :`"\<\b\(\+\-)>\[\M\A\R\D':'\m\a\u\d]\{\h('@')}':'"` results in something that
@@ -43,7 +43,7 @@
 //! | `\m`  | # of unstaged modified files   | `M1`            |
 //! | `\a`  | # of untracked files           | `?1`            |
 //! | `\d`  | # of unstaged deleted files    | `D1`            |
-//! | `\u`  | # of merge conflits            | `U1`            |
+//! | `\u`  | # of merge conflicts           | `U1`            |
 //! | `\M`  | # of staged modified files     | `M1`            |
 //! | `\A`  | # of added files               | `A1`            |
 //! | `\R`  | # of renamed files             | `R1`            |
@@ -97,7 +97,7 @@
 //! | `#W(`...`)`          | white background                              |
 //! | `#K(`...`)`          | bright black background                       |
 //! | `#{01,02,03}(`...`)` | 24 bit rgb background color                   |
-//! | `#01(`...`)`         | ANSI bold, support for any ANSI terminal code |
+//! | `#01(`...`)`         | Fixed terminal color                          |
 //!
 //! Format styles can be combined in a single expression by separating them with semicolons:
 //!
@@ -105,7 +105,7 @@
 //! |:---------------|:-------------------------------|
 //! | `#w;K(`...`)`  | white text, black background   |
 //! | `#r;*(`...`)`  | red bold text                  |
-//! | `#1;42(`...`)` | bold red text                  |
+//! | `#42(`...`)`   | a forest greenish color        |
 //! | `#_;*(`...`)`  | underline bold text            |
 
 extern crate ansi_term;

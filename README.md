@@ -1,36 +1,109 @@
 # Gist
 
-A utility for pretty-printing meta information about `git` repositories, intended to facilitate making custom git prompts.
+An expression based, ergonomic language for writing the status of your git repository into
+your shell prompt.
 
-A format specifier is also called a gist expression.  Gist expressions come in three types:
+For example :`"\<\b\(\+\-)>\[\M\A\R\D':'\m\a\u\d]\{\h('@')}':'"` results in something that
+might look like `<master(+1)>[M1:D3]{@5}:` where
+
+- `master` is the name of the current branch.
+- `+1`: means we are 1 commit ahead of the remote branch
+- `M1`: the number of staged modifications
+- `D3`: is the number of unstaged deleted files
+- `@5`: is the number of stashes
+
+`gist` expressions also support inline format expressions to do things like making text red,
+or bold, or using ANSI terminal escape sequences, or setting RGB colors for your git
+information.
+
+# Grammar
+
+`gist` expressions have four basic types of expressions:
 
 1. Named expressions
-2. Group Expressions
-3. Literal Expressions
+2. Format expressions
+3. Group expressions
+4. Literals
 
-**Named expressions** take one of two forms: the plain form with no arguments, or with a list of arguments, comma seperated.
+## Literals
 
-- `\name` plain form
-- `\name(exp1,exp2,...,expn)` with expressions as arguments, comma separated.
+Any characters between single quotes literal, except for backslashes and single quotes.
+Literals are left untouched.  For example, `'literal'` outputs `literal`.
 
-**Group expressions** are set of expressions, which are not comma separated.  There are a few base group types:
+## Named expressions
 
-- `\()` parentheses - wrap with parentheses
-- `\{}` curly braces - wrap with curly braces
-- `\[]` square brackets - wrap contents with square brackets
-- `\<>` angle brackets - wrap contents with angle brackets
-- `\g()` bare group - do not wrap contents with anything
+Named expressions represent information about your git repository.
 
-The base of all gist expressions is an implicit bare group.  Thus, the following is a valid gist expression even though expressions are next to each-other without an explicit bare group.
+| Name  | Meaning                        | Example         |
+|:------|:-------------------------------|:----------------|
+| `\b`  | branch name or head commit id  | `master`        |
+| `\B`  | remote name                    | `origin/master` |
+| `\+`  | # of commits ahead remote      | `+1`            |
+| `\-`  | # of commits behind remote     | `-1`            |
+| `\m`  | # of unstaged modified files   | `M1`            |
+| `\a`  | # of untracked files           | `?1`            |
+| `\d`  | # of unstaged deleted files    | `D1`            |
+| `\u`  | # of merge conflicts           | `U1`            |
+| `\M`  | # of staged modified files     | `M1`            |
+| `\A`  | # of added files               | `A1`            |
+| `\R`  | # of renamed files             | `R1`            |
+| `\D`  | # of staged deleted files      | `D1`            |
+| `\h`  | # of stashed files             | `H1`            |
 
-```txt
-\(\*(\b\B)\+\-)\[\A\M\D\R]\{\h('@')}'~'
-```
+You can provide other expressions as arguments to expressions which replace the default prefix
+which appears before the result or file count.  For example, `\h('@')` will output `@3`
+instead of `H3` if your repository has 3 stashed files.  You can provide an arbitrary number
+of valid expressions as a prefix to another named expression.
 
-By nesting groups of expressions, we can create an implicit tree of expressions.
+## Group Expressions
 
-A **literal expression** is any valid utf8 characters between single quites, except for single quotes and backslashes.
+Gist will surround grouped expressions with parentheses or brackets, and will print nothing if
+the group is empty.
 
-```txt
-'hello''we''are''literal''expressions''I am one including whitespace''日本語で書いてもいい'
-```
+| Macro       | Result                           |
+|:------------|:---------------------------------|
+| `\[]`       | empty                            |
+| `\()`       | empty                            |
+| `\<>`       | empty                            |
+| `\{}`       | empty                            |
+| `\{\b}`     | `{master}`                       |
+| `\<\+\->`   | `<+1-1>`                         |
+| `\[\M\A\R]` | `[M1A3]` where `\R` is empty     |
+| `\[\r\(\a)]`| empty, when `\r`, `\a` are empty |
+
+## Format Expressions
+
+Gist expressions support ANSI terminal formatting through the following styles:
+
+| Format               | Meaning                                       |
+|:---------------------|:----------------------------------------------|
+| `#~(`...`)`          | reset                                         |
+| `#_(`...`)`          | underline                                     |
+| `#i(`...`)`          | italic text                                   |
+| `#*(`...`)`          | bold text                                     |
+| `#r(`...`)`          | red text                                      |
+| `#g(`...`)`          | green text                                    |
+| `#b(`...`)`          | blue text                                     |
+| `#m(`...`)`          | magenta/purple text                           |
+| `#y(`...`)`          | yellow text                                   |
+| `#w(`...`)`          | white text                                    |
+| `#k(`...`)`          | bright black text                             |
+| `#[01,02,03](`...`)` | 24 bit RGB text color                         |
+| `#R(`...`)`          | red background                                |
+| `#G(`...`)`          | green background                              |
+| `#B(`...`)`          | blue background                               |
+| `#M(`...`)`          | magenta/purple background                     |
+| `#Y(`...`)`          | yellow background                             |
+| `#W(`...`)`          | white background                              |
+| `#K(`...`)`          | bright black background                       |
+| `#{01,02,03}(`...`)` | 24 bit RGB background color                   |
+| `#01(`...`)`         | Fixed terminal color                          |
+
+Format styles can be combined in a single expression by separating them with semicolons:
+
+| Format         | Meaning                        |
+|:---------------|:-------------------------------|
+| `#w;K(`...`)`  | white text, black background   |
+| `#r;*(`...`)`  | red bold text                  |
+| `#42(`...`)`   | a forest greenish color        |
+| `#_;*(`...`)`  | underline bold text            |
