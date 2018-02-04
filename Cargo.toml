@@ -8,6 +8,7 @@ readme = "README.md"
 
 
 [dependencies]
+ansi_term = "0.9"
 git2 = "0.6.10"
 clap = "~2.29"
 nom = "^3.2"
