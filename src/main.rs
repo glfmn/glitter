@@ -108,6 +108,7 @@
 //! | `#1;42(`...`)` | bold red text                  |
 //! | `#_;*(`...`)`  | underline bold text            |
 
+extern crate ansi_term;
 #[macro_use]
 extern crate clap;
 extern crate git2;
