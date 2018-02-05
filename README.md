@@ -1,5 +1,7 @@
 # Gist
 
+![](img/gist-demo.gif)
+
 A domain-specific language for printing git stats in custom formats.
 
 # Installation
