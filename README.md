@@ -9,21 +9,21 @@ A domain-specific language for printing git stats in custom formats.
 As long as you have the rust tool-chain set up, installing is as easy as:
 
 ```
-$ cargo install gist-lang
+$ cargo install gist-i
 ```
 
 You can download the rust toolchain at [rustup.rs](http://rustup.rs/).
 
-Basic usage for `gist` is:
+Basic usage for `gist-i` is:
 
 ```
-$ gist <FORMAT>
+$ gist-i <FORMAT>
 ```
 
 Learn more and get help with:
 
 ```
-$ gist help
+$ gist-i help
 ```
 
 Too add a gist format to your shell prompt if you are in a bash shell, add the following snippet to your `~/.bashrc`:
@@ -70,7 +70,7 @@ __set_prompt() {
     fi
 
     if [ "$(__is_git_repo)" -eq "0" ]; then
-      local stats="$(gist $fmt)"
+      local stats="$(gist-i $fmt)"
       PS1+="$stats:$bylw\w$nc\n\$ "
     else
       PS1+="$bgrn\u$grn@\h$nc:$bblu\w$nc\$ "
