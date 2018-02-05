@@ -2,7 +2,7 @@
 
 ![](img/gist-demo.gif)
 
-A domain-specific language for printing git stats in custom formats.
+**A domain-specific language for printing git stats in custom formats.**
 
 # Installation
 
@@ -100,12 +100,9 @@ gwen@tpy12:~/Documents/dev/util/gist$
 
 Its intended to provide useful information about your shell.  However, it normally does not include information about git repositories, requiring the near constant use of `git status` to understand the state of the repository.  The solution is to set a prompt command and dynamically update your shell with the information you want.  `gist` is made for precisely this purpose: you can provide a format, and gist will interpret it, inserting the information in the format you want.
 
-# Making your own gist format
+## Making your own gist format
 
-# Language
-
-For example :`"\<\b\(\+\-)>\[\M\A\R\D':'\m\a\u\d]\{\h('@')}':'"` results in something that
-might look like `<master(+1)>[M1:D3]{@5}:` where
+An example format looks like:`"\<\b\(\+\-)>\[\M\A\R\D':'\m\a\u\d]\{\h('@')}':'"` results in something that might look like `<master(+1)>[M1:D3]{@5}:` where
 
 - `master` is the name of the current branch.
 - `+1`: means we are 1 commit ahead of the remote branch
@@ -113,25 +110,26 @@ might look like `<master(+1)>[M1:D3]{@5}:` where
 - `D3`: is the number of unstaged deleted files
 - `@5`: is the number of stashes
 
-`gist` expressions also support inline format expressions to do things like making text red,
-or bold, or using ANSI terminal escape sequences, or setting RGB colors for your git
-information.
+`gist` expressions also support inline format expressions to do things like making text red, or bold, or using ANSI terminal escape sequences, or setting RGB colors for your git information.
 
-# Grammar
+`gist-i` will only accept your format string if your current directory is a **git repository**.
 
-`gist` expressions have four basic types of expressions:
+`gist` expressions have four components:
 
 1. Named expressions
 2. Format expressions
 3. Group expressions
 4. Literals
 
-## Literals
+### Literals
 
-Any characters between single quotes literal, except for backslashes and single quotes.
-Literals are left untouched.  For example, `'literal'` outputs `literal`.
+Any characters between single quotes literal, except for backslashes and single quotes. Literals are left untouched.  For example, `'literal'` outputs `literal`.
 
-## Named expressions
+```
+$ gist-i "'hello world'"
+```
+
+### Named expressions
 
 Named expressions represent information about your git repository.
 
@@ -151,15 +149,19 @@ Named expressions represent information about your git repository.
 | `\D`  | # of staged deleted files      | `D1`            |
 | `\h`  | # of stashed files             | `H1`            |
 
-You can provide other expressions as arguments to expressions which replace the default prefix
-which appears before the result or file count.  For example, `\h('@')` will output `@3`
-instead of `H3` if your repository has 3 stashed files.  You can provide an arbitrary number
-of valid expressions as a prefix to another named expression.
+You can provide other expressions as arguments to expressions which replace the default prefix which appears before the result or file count.  For example, `\h('@')` will output `@3`
+instead of `H3` if your repository has 3 stashed files.  You can provide an arbitrary number of valid expressions as a prefix to another named expression.
 
-## Group Expressions
+```
+$ gist-i "\b"
+$ gist-i "\b('on branch ')"
+```
 
-Gist will surround grouped expressions with parentheses or brackets, and will print nothing if
-the group is empty.
+Expressions generally only render any output if their corresponding values aren't empty; in other words, if there are no added files, `gist-i` will not produce `A0` as the output of `\A`.
+
+### Group Expressions
+
+Gist will surround grouped expressions with parentheses or brackets, and will print nothing if the group is empty.
 
 | Macro       | Result                           |
 |:------------|:---------------------------------|
@@ -172,7 +174,11 @@ the group is empty.
 | `\[\M\A\R]` | `[M1A3]` where `\R` is empty     |
 | `\[\r\(\a)]`| empty, when `\r`, `\a` are empty |
 
-## Format Expressions
+```
+$ gist-i "\b\<\M>"
+```
+
+### Format Expressions
 
 Gist expressions support ANSI terminal formatting through the following styles:
 
@@ -208,3 +214,17 @@ Format styles can be combined in a single expression by separating them with sem
 | `#r;*(`...`)`  | red bold text                  |
 | `#42(`...`)`   | a forest greenish color        |
 | `#_;*(`...`)`  | underline bold text            |
+
+```
+$ gist-i "#r;*('hello world')"
+$ gist-i "#g;*(\b)"
+$ gist-i "#[255,175,52]('orange text')"
+$ gist-i "#G('green background')"
+```
+
+`gist` can understand and respects complicated nested styles, providing maximum flexibility.
+
+```
+$ gist-i "#g('green text with some '#*('bold')' green text')"
+$ gist-i "#g;*(\b(#~('on branch ')))"
+```
