@@ -4,6 +4,8 @@
 
 **A domain-specific language for printing git stats in custom formats.**
 
+[![Crates.io](https://img.shields.io/crates/v/glit.svg)]()[![Build Status](https://travis-ci.org/glfmn/glitter.svg?branch=master)](https://travis-ci.org/glfmn/glitter)
+
 # Installation
 
 ## Quick Start
@@ -28,7 +30,7 @@ Learn more and get help with:
 $ glit help
 ```
 
-Too add a gist format to your shell prompt if you are in a bash shell, add the following snippet to your `~/.bashrc`:
+Too add a glitter format to your shell prompt if you are in a bash shell, add the following snippet to your `~/.bashrc`:
 
 ```bash
 __is_git_repo() {
@@ -41,7 +43,7 @@ __set_prompt() {
     local EXIT="$?"
     # Capture last command exit flag first
 
-    # Your gist format
+    # Your glitter format
     local fmt="\<#m;*(\b)#m(\B(#~('..')))\(#g(\+)#r(\-))>\[#g;*(\M\A\R\D)#r;*(\m\a\u\d)]\{#m;*;_(\h('@'))}"
 
     # If color support exists, set color values, otherwise set them as empty
@@ -82,13 +84,13 @@ __set_prompt() {
 export PROMPT_COMMAND=__set_prompt
 ```
 
-Where the variable **fmt** contains your gist format.  Here are a few examples you might want to try out on your system.
+Where the variable **fmt** contains your glitter format.  Here are a few examples you might want to try out on your system.
 
 | Example `fmt`                                                                                              | Result                                             |
 |:-----------------------------------------------------------------------------------------------------------|:---------------------------------------------------|
-| `"\<#m;*(\b)#m(\B(#~('..')))\(#g(\+)#r(\-))>\[#g;*(\M\A\R\D)#r;*(\m\a\u\d)]\{#m;*;_(\h('@'))}"`            | ![long example gist](img/example-1.png)            |
-| `"\(#m;*(\b)#g(\+)#r(\-))\[#g(\M\A\R\D)#r(\m\a\u\d)]\{#m;_(\h('@'))}':'"`                                  | ![short example gist](img/example-2.png)           |
-| `"#g;*(\b)#y(\B(#~('..')))\[#g(\+(#~('ahead ')))]\[#r(\-(#~('behind ')))]' '#g;_(\M\A\R\D)#r;_(\m\a\u\d)"` | ![`git status sb` example gist](img/example-3.png) |
+| `"\<#m;*(\b)#m(\B(#~('..')))\(#g(\+)#r(\-))>\[#g;*(\M\A\R\D)#r;*(\m\a\u\d)]\{#m;*;_(\h('@'))}"`            | ![long example glitter](img/example-1.png)            |
+| `"\(#m;*(\b)#g(\+)#r(\-))\[#g(\M\A\R\D)#r(\m\a\u\d)]\{#m;_(\h('@'))}':'"`                                  | ![short example glitter](img/example-2.png)           |
+| `"#g;*(\b)#y(\B(#~('..')))\[#g(\+(#~('ahead ')))]\[#r(\-(#~('behind ')))]' '#g;_(\M\A\R\D)#r;_(\m\a\u\d)"` | ![`git status sb` example glitter](img/example-3.png) |
 
 ## Background
 
@@ -98,9 +100,9 @@ Most shells provide the ability to customize the shell prompt which appears befo
 gwen@tpy12:~/Documents/dev/util/glitter$
 ```
 
-Its intended to provide useful information about your shell.  However, it normally does not include information about git repositories, requiring the near constant use of `git status` to understand the state of the repository.  The solution is to set a prompt command and dynamically update your shell with the information you want.  `gist` is made for precisely this purpose: you can provide a format, and gist will interpret it, inserting the information in the format you want.
+Its intended to provide useful information about your shell.  However, it normally does not include information about git repositories, requiring the near constant use of `git status` to understand the state of the repository.  The solution is to set a prompt command and dynamically update your shell with the information you want.  `glit` is made for precisely this purpose: you can provide a format, and glitter will interpret it, inserting the information in the format you want.
 
-## Making your own gist format
+## Making your own glitter format
 
 An example format looks like:`"\<\b\(\+\-)>\[\M\A\R\D':'\m\a\u\d]\{\h('@')}':'"` results in something that might look like `<master(+1)>[M1:D3]{@5}:` where
 
@@ -110,11 +112,11 @@ An example format looks like:`"\<\b\(\+\-)>\[\M\A\R\D':'\m\a\u\d]\{\h('@')}':'"`
 - `D3`: is the number of unstaged deleted files
 - `@5`: is the number of stashes
 
-`gist` expressions also support inline format expressions to do things like making text red, or bold, or using ANSI terminal escape sequences, or setting RGB colors for your git information.
+`glit` expressions also support inline format expressions to do things like making text red, or bold, or using ANSI terminal escape sequences, or setting RGB colors for your git information.
 
 `glit` will only accept your format string if your current directory is a **git repository**.
 
-`gist` expressions have four components:
+`glit` expressions have four components:
 
 1. Named expressions
 2. Format expressions
@@ -222,7 +224,7 @@ $ glit "#[255,175,52]('orange text')"
 $ glit "#G('green background')"
 ```
 
-`gist` can understand and respects complicated nested styles, providing maximum flexibility.
+`glit` can understand and respects complicated nested styles, providing maximum flexibility.
 
 ```
 $ glit "#g('green text with some '#*('bold')' green text')"
