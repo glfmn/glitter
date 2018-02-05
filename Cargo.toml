@@ -1,10 +1,15 @@
 [package]
-name = "gist"
+name = "gist-i"
 version = "0.1.0"
 authors = ["Gwen Lofman <Gwen@Lofman.io>"]
 description = "A utility for pretty-printing git stats"
 license = "MPL-2.0"
 readme = "README.md"
+repository = "https://github.com/glfmn/gist"
+keywords = ["DSL", "git", "gist", "status", "pretty printing"]
+exclude = [
+    "img/*",
+]
 
 
 [dependencies]
