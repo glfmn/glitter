@@ -1,6 +1,6 @@
-# Gist
+# Glitter
 
-![](img/gist-demo.gif)
+![](img/glit-demo.gif)
 
 **A domain-specific language for printing git stats in custom formats.**
 
@@ -11,21 +11,21 @@
 As long as you have the rust tool-chain set up, installing is as easy as:
 
 ```
-$ cargo install gist-i
+$ cargo install glit
 ```
 
 You can download the rust toolchain at [rustup.rs](http://rustup.rs/).
 
-Basic usage for `gist-i` is:
+Basic usage for `glit` is:
 
 ```
-$ gist-i <FORMAT>
+$ glit <FORMAT>
 ```
 
 Learn more and get help with:
 
 ```
-$ gist-i help
+$ glit help
 ```
 
 Too add a gist format to your shell prompt if you are in a bash shell, add the following snippet to your `~/.bashrc`:
@@ -72,7 +72,7 @@ __set_prompt() {
     fi
 
     if [ "$(__is_git_repo)" -eq "0" ]; then
-      local stats="$(gist-i $fmt)"
+      local stats="$(glit $fmt)"
       PS1+="$stats:$bylw\w$nc\n\$ "
     else
       PS1+="$bgrn\u$grn@\h$nc:$bblu\w$nc\$ "
@@ -95,7 +95,7 @@ Where the variable **fmt** contains your gist format.  Here are a few examples y
 Most shells provide the ability to customize the shell prompt which appears before every command.  On my system, the default looks like:
 
 ```
-gwen@tpy12:~/Documents/dev/util/gist$
+gwen@tpy12:~/Documents/dev/util/glitter$
 ```
 
 Its intended to provide useful information about your shell.  However, it normally does not include information about git repositories, requiring the near constant use of `git status` to understand the state of the repository.  The solution is to set a prompt command and dynamically update your shell with the information you want.  `gist` is made for precisely this purpose: you can provide a format, and gist will interpret it, inserting the information in the format you want.
@@ -112,7 +112,7 @@ An example format looks like:`"\<\b\(\+\-)>\[\M\A\R\D':'\m\a\u\d]\{\h('@')}':'"`
 
 `gist` expressions also support inline format expressions to do things like making text red, or bold, or using ANSI terminal escape sequences, or setting RGB colors for your git information.
 
-`gist-i` will only accept your format string if your current directory is a **git repository**.
+`glit` will only accept your format string if your current directory is a **git repository**.
 
 `gist` expressions have four components:
 
@@ -126,7 +126,7 @@ An example format looks like:`"\<\b\(\+\-)>\[\M\A\R\D':'\m\a\u\d]\{\h('@')}':'"`
 Any characters between single quotes literal, except for backslashes and single quotes. Literals are left untouched.  For example, `'literal'` outputs `literal`.
 
 ```
-$ gist-i "'hello world'"
+$ glit "'hello world'"
 ```
 
 ### Named expressions
@@ -153,15 +153,15 @@ You can provide other expressions as arguments to expressions which replace the 
 instead of `H3` if your repository has 3 stashed files.  You can provide an arbitrary number of valid expressions as a prefix to another named expression.
 
 ```
-$ gist-i "\b"
-$ gist-i "\b('on branch ')"
+$ glit "\b"
+$ glit "\b('on branch ')"
 ```
 
-Expressions generally only render any output if their corresponding values aren't empty; in other words, if there are no added files, `gist-i` will not produce `A0` as the output of `\A`.
+Expressions generally only render any output if their corresponding values aren't empty; in other words, if there are no added files, `glit` will not produce `A0` as the output of `\A`.
 
 ### Group Expressions
 
-Gist will surround grouped expressions with parentheses or brackets, and will print nothing if the group is empty.
+Glitter will surround grouped expressions with parentheses or brackets, and will print nothing if the group is empty.
 
 | Macro       | Result                           |
 |:------------|:---------------------------------|
@@ -175,12 +175,12 @@ Gist will surround grouped expressions with parentheses or brackets, and will pr
 | `\[\r\(\a)]`| empty, when `\r`, `\a` are empty |
 
 ```
-$ gist-i "\b\<\M>"
+$ glit "\b\<\M>"
 ```
 
 ### Format Expressions
 
-Gist expressions support ANSI terminal formatting through the following styles:
+Glitter expressions support ANSI terminal formatting through the following styles:
 
 | Format               | Meaning                     |
 |:---------------------|:----------------------------|
@@ -216,15 +216,15 @@ Format styles can be combined in a single expression by separating them with sem
 | `#_;*(`...`)`  | underline bold text            |
 
 ```
-$ gist-i "#r;*('hello world')"
-$ gist-i "#g;*(\b)"
-$ gist-i "#[255,175,52]('orange text')"
-$ gist-i "#G('green background')"
+$ glit "#r;*('hello world')"
+$ glit "#g;*(\b)"
+$ glit "#[255,175,52]('orange text')"
+$ glit "#G('green background')"
 ```
 
 `gist` can understand and respects complicated nested styles, providing maximum flexibility.
 
 ```
-$ gist-i "#g('green text with some '#*('bold')' green text')"
-$ gist-i "#g;*(\b(#~('on branch ')))"
+$ glit "#g('green text with some '#*('bold')' green text')"
+$ glit "#g;*(\b(#~('on branch ')))"
 ```

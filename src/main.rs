@@ -1,4 +1,4 @@
-//! gist, a git repository status pretty-printer
+//! glitter, a git repository status pretty-printer
 //!
 //! An expression based, ergonomic language for writing the status of your git repository into
 //! your shell prompt.
@@ -12,13 +12,13 @@
 //! - `D3`: is the number of unstaged deleted files
 //! - `@5`: is the number of stashes
 //!
-//! `gist` expressions also support inline format expressions to do things like making text red,
+//! `glit` expressions also support inline format expressions to do things like making text red,
 //! or bold, or using ANSI terminal escape sequences, or setting RGB colors for your git
 //! information.
 //!
 //! # Grammar
 //!
-//! `gist` expressions have four basic types of expressions:
+//! `glit` expressions have four basic types of expressions:
 //!
 //! 1. Named expressions
 //! 2. Format expressions
@@ -57,8 +57,8 @@
 //!
 //! ## Group Expressions
 //!
-//! Gist will surround grouped expressions with parentheses or brackets, and will print nothing if
-//! the group is empty.
+//! Glitter will surround grouped expressions with parentheses or brackets, and will print nothing
+//! if the group is empty.
 //!
 //! | Macro       | Result                           |
 //! |:------------|:---------------------------------|
@@ -73,7 +73,7 @@
 //!
 //! ## Format Expressions
 //!
-//! Gist expressions support ANSI terminal formatting through the following styles:
+//! Glitter expressions support ANSI terminal formatting through the following styles:
 //!
 //! | Format               | Meaning                                       |
 //! |:---------------------|:----------------------------------------------|
@@ -129,7 +129,7 @@ mod parser;
 use clap::ArgMatches;
 use git2::Repository;
 
-const DESC: &'static str = "Gist is a git repository status pretty-printing utility, useful for
+const DESC: &'static str = "Glitter is a git repository status pretty-printing utility, useful for
 making custom prompts which incorporate information about the current
 git repository, such as the branch name, number of unstaged changes,
 and more.";
@@ -140,7 +140,7 @@ enum Mode<'a> {
     /// Tell if we are inside a git repository or not at the desired path
     IsRepo(&'a str),
     /// Parse pretty-printing format and insert git stats
-    Gist {
+    Glitter {
         /// Path of the git repository to check
         path: &'a str,
         /// Format string to parse
@@ -162,7 +162,7 @@ impl<'a> Mode<'a> {
                 format: matches.value_of("FORMAT").unwrap()
             }
         } else {
-            Mode::Gist {
+            Mode::Glitter {
                 path: matches.value_of("path").unwrap_or("."),
                 format: matches.value_of("FORMAT").unwrap(),
             }
@@ -188,7 +188,7 @@ enum ProgramErr<'a> {
 fn main() {
     let exit = {
         // Read and parse command-line arguments
-        let matches = clap_app!(gist =>
+        let matches = clap_app!(glit =>
             (version: crate_version!())
             (author: crate_authors!())
             (about: crate_description!())
@@ -219,7 +219,7 @@ fn main() {
                 }
             },
             // Parse pretty format and insert git status
-            Mode::Gist{ path, format } => {
+            Mode::Glitter{ path, format } => {
                 match Repository::open(path) {
                     Ok(mut repo) => {
                         let parse = parser::expression_tree(format.as_bytes()).to_result();

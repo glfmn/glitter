@@ -106,19 +106,6 @@ version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
-name = "gist-i"
-version = "0.1.0"
-dependencies = [
- "ansi_term 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "clap 2.29.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "git2 0.6.10 (registry+https://github.com/rust-lang/crates.io-index)",
- "nom 3.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "quickcheck 0.4.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "rand 0.3.19 (registry+https://github.com/rust-lang/crates.io-index)",
- "rand_derive 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
 name = "git2"
 version = "0.6.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -129,6 +116,19 @@ dependencies = [
  "openssl-probe 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "openssl-sys 0.9.23 (registry+https://github.com/rust-lang/crates.io-index)",
  "url 1.6.0 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "glit"
+version = "0.1.0"
+dependencies = [
+ "ansi_term 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "clap 2.29.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "git2 0.6.10 (registry+https://github.com/rust-lang/crates.io-index)",
+ "nom 3.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "quickcheck 0.4.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rand 0.3.19 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rand_derive 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]

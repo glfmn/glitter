@@ -1,11 +1,11 @@
 [package]
-name = "gist-i"
+name = "glit"
 version = "0.1.0"
 authors = ["Gwen Lofman <Gwen@Lofman.io>"]
 description = "A utility for pretty-printing git stats"
 license = "MPL-2.0"
 readme = "README.md"
-repository = "https://github.com/glfmn/gist"
+repository = "https://github.com/glfmn/glitter"
 keywords = ["DSL", "git", "gist", "status", "pretty-printing"]
 exclude = [
     "img/*.gif"
