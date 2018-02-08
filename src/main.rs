@@ -213,14 +213,14 @@ fn main() {
         let error: Result<(), ProgramErr> = match Mode::from_matches(&matches) {
             // Determine whether the given path is a git repository
             Mode::IsRepo(path) => {
-                match Repository::open(path) {
+                match Repository::discover(path) {
                     Ok(_) => Ok(()),
                     Err(_) => Err(BadPath(Box::new(path))),
                 }
             },
             // Parse pretty format and insert git status
             Mode::Glitter{ path, format } => {
-                match Repository::open(path) {
+                match Repository::discover(path) {
                     Ok(mut repo) => {
                         let parse = parser::expression_tree(format.as_bytes()).to_result();
                         match parse {
