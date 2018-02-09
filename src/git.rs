@@ -96,7 +96,7 @@ impl Stats {
     fn read_branch(&mut self, repo: &Repository) {
         self.branch = match repo.head() {
             Ok(head) => {
-                if let Some(name) = head.name() {
+                if let Some(name) = head.shorthand() {
                     // try to use first 8 characters or so of the ID in detached HEAD
                     if name == "HEAD" {
                         if let Ok(commit) = head.peel_to_commit() {
@@ -110,7 +110,7 @@ impl Stats {
                         }
                     // Grab the branch from the reference
                     } else {
-                        let branch = name.split("/").last().unwrap_or("").to_string();
+                        let branch = name.to_string();
                         // Since we have a branch name, look for the name of the upstream branch
                         self.read_upstream_name(repo, &branch);
                         branch
