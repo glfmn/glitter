@@ -44,64 +44,50 @@ Learn more and get help with:
 $ glit help
 ```
 
+## Setting your shell to use `glit`
+
 Too add a glitter format to your shell prompt if you are in a bash shell, add the following snippet to your `~/.bashrc`:
 
 ```bash
-__is_git_repo() {
-    # return 128 if not in git repository, return 0 if in repo
-    git status -sb --porcelain &>/dev/null
-    echo "$?"
-}
+# Use environment variables to store formats if you want to be able to easily
+# change them from your shell by just doing:
+#
+#   $ export PS1_FMT="#r;*('TODO')"
 
+# Format to use inside of git repositories or their sub-folders
+export PS1_FMT="\<#m;*(\b)#m(\B(#~('..')))\(#g(\+)#r(\-))>\[#g;*(\M\A\R\D)#r;*(\m\a\u\d)]\{#m;*;_(\h('@'))}':'#y;*('\w')'\n\$ '"
+
+# Format to use outside of git repositories
+export PS1_ELSE_FMT="#g(#*('\u')'@\h')':'#b;*('\w')'\$ '"
+
+# Prompt command which is used to set the prompt, includes some extra useful
+# functionality such as showing the last exit code
 __set_prompt() {
     local EXIT="$?"
     # Capture last command exit flag first
-
-    # Your glitter format
-    local fmt="\<#m;*(\b)#m(\B(#~('..')))\(#g(\+)#r(\-))>\[#g;*(\M\A\R\D)#r;*(\m\a\u\d)]\{#m;*;_(\h('@'))}"
-
-    # If color support exists, set color values, otherwise set them as empty
-    if [ -x /usr/bin/tput ] && tput setaf 1 >&/dev/null; then
-      # We have color support; assume it's compliant with Ecma-48
-      # (ISO/IEC-6429). (Lack of such support is extremely rare, and such
-      # a case would tend to support setf rather than setaf.)
-      local nc="\[\033[0m\]"
-      local red="\[\033[00;31m\]"
-      local grn="\[\033[00;32m\]"
-      local ylw="\[\033[00;33m\]"
-      local blu="\[\033[00;34m\]"
-      local bgrn="\[\033[01;32m\]"
-      local bylw="\[\033[01;33m\]"
-      local bblu="\[\033[01;34m\]"
-      local bpur="\[\033[01;35m\]"
-    fi
 
     # Clear out prompt
     PS1=""
 
     # If the last command didn't exit 0, display the exit code
-    [ "$EXIT" -ne "0" ] && PS1+="$red$EXIT$nc "
+    [ "$EXIT" -ne "0" ] && PS1+="$EXIT "
 
     # identify debian chroot, if one exists
     if [ -z "${debian_chroot:-}" ] && [ -r /etc/debian_chroot ]; then
       PS1+="${debian_chroot:+($(cat /etc/debian_chroot))}"
     fi
 
-    if [ "$(__is_git_repo)" -eq "0" ]; then
-      local stats="$(glit $fmt)"
-      PS1+="$stats:$bylw\w$nc\n\$ "
-    else
-      PS1+="$bgrn\u$grn@\h$nc:$bblu\w$nc\$ "
-    fi
+    # Render the appropriate format depending on whether we are in a git repo
+    PS1+="$(glit "$PS1_FMT" -e "$PS1_ELSE_FMT")"
 }
 
 export PROMPT_COMMAND=__set_prompt
 ```
 
-Where the variable **fmt** contains your glitter format.  Here are a few examples you might want to try out on your system.
+Where the variable **PS1_FMT** contains your glitter format.  Here are a few examples you might want to try out on your system.
 
-| Example `fmt`                                                                                              | Result                                             |
-|:-----------------------------------------------------------------------------------------------------------|:---------------------------------------------------|
+| Example `fmt`                                                                                              | Result                                                |
+|:-----------------------------------------------------------------------------------------------------------|:------------------------------------------------------|
 | `"\<#m;*(\b)#m(\B(#~('..')))\(#g(\+)#r(\-))>\[#g;*(\M\A\R\D)#r;*(\m\a\u\d)]\{#m;*;_(\h('@'))}"`            | ![long example glitter](img/example-1.png)            |
 | `"\(#m;*(\b)#g(\+)#r(\-))\[#g(\M\A\R\D)#r(\m\a\u\d)]\{#m;_(\h('@'))}':'"`                                  | ![short example glitter](img/example-2.png)           |
 | `"#g;*(\b)#y(\B(#~('..')))\[#g(\+(#~('ahead ')))]\[#r(\-(#~('behind ')))]' '#g;_(\M\A\R\D)#r;_(\m\a\u\d)"` | ![`git status sb` example glitter](img/example-3.png) |
@@ -139,10 +125,12 @@ An example format looks like:`"\<\b\(\+\-)>\[\M\A\R\D':'\m\a\u\d]\{\h('@')}':'"`
 
 ### Literals
 
-Any characters between single quotes literal, except for backslashes and single quotes. Literals are left untouched.  For example, `'literal'` outputs `literal`.
+Any characters between single quotes are literals. Literals are left untouched.  For example, `'literal'` outputs `literal`.
 
 ```
 $ glit "'hello world'"
+$ glit "'\n\w\n\u'"
+$ glit "'separate'' ''words'"
 ```
 
 ### Named expressions
@@ -199,7 +187,7 @@ $ glit "\b\<\M>"
 Glitter expressions support ANSI terminal formatting through the following styles:
 
 | Format                   | Meaning                     |
-|:---------    ------------|:----------------------------|
+|:-------------------------|:----------------------------|
 | `#~(` '...' `)`          | reset                       |
 | `#_(` '...' `)`          | underline                   |
 | `#i(` '...' `)`          | italic text                 |
@@ -225,7 +213,7 @@ Glitter expressions support ANSI terminal formatting through the following style
 Format styles can be combined in a single expression by separating them with semicolons:
 
 | Format             | Meaning                        |
-|:---------    ------|:-------------------------------|
+|:-------------------|:-------------------------------|
 | `#w;K(` '...' `)`  | white text, black background   |
 | `#r;*(` '...' `)`  | red bold text                  |
 | `#42(` '...' `)`   | a forest greenish color        |
