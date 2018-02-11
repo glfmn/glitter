@@ -114,11 +114,11 @@ extern crate clap;
 extern crate git2;
 #[macro_use]
 extern crate nom;
-extern crate rand;
-#[macro_use]
-extern crate rand_derive;
 
-#[cfg(test)] #[macro_use]
+#[cfg(test)] extern crate rand;
+#[cfg_attr(test, macro_use)]
+#[cfg(test)] extern crate rand_derive;
+#[cfg_attr(test, macro_use)]
 #[cfg(test)] extern crate quickcheck;
 
 mod ast;

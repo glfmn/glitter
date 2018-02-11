@@ -12,12 +12,12 @@ exclude = [
 ]
 
 [dependencies]
-ansi_term = "0.9"
+ansi_term = "0.10"
 git2 = "0.6.10"
 clap = "~2.29"
 nom = "^3.2"
-rand = "0.3"
-rand_derive = "0.3"
 
 [dev-dependencies]
+rand = "0.3"
+rand_derive = "0.3"
 quickcheck = "0.4"
