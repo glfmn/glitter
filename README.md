@@ -8,15 +8,29 @@
 
 # Installation
 
-## Quick Start
-
-As long as you have the rust tool-chain set up, installing is as easy as:
+As long as you have the rust tool-chain set up, `cmake` and `openssl` installed, getting `glit` is as easy as:
 
 ```
 $ cargo install glit
 ```
 
+## Dependencies
+
 You can download the rust toolchain at [rustup.rs](http://rustup.rs/).
+
+### MacOSX
+
+```
+brew install cmake openssl
+```
+
+### Ubuntu/Debian
+
+```
+apt-get install cmake openssl
+```
+
+## Usage
 
 Basic usage for `glit` is:
 
@@ -104,7 +118,7 @@ Its intended to provide useful information about your shell.  However, it normal
 
 ## Making your own glitter format
 
-An example format looks like:`"\<\b\(\+\-)>\[\M\A\R\D':'\m\a\u\d]\{\h('@')}':'"` results in something that might look like `<master(+1)>[M1:D3]{@5}:` where
+An example format looks like:`"\<\b\(\+\-)>\[\M\A\R\D':'\m\a\u\d]\{\h('@')}':'"`.  `glit` interprets this into something that might look like `<master(+1)>[M1:D3]{@5}:` where
 
 - `master` is the name of the current branch.
 - `+1`: means we are 1 commit ahead of the remote branch
@@ -112,7 +126,7 @@ An example format looks like:`"\<\b\(\+\-)>\[\M\A\R\D':'\m\a\u\d]\{\h('@')}':'"`
 - `D3`: is the number of unstaged deleted files
 - `@5`: is the number of stashes
 
-`glit` expressions also support inline format expressions to do things like making text red, or bold, or using ANSI terminal escape sequences, or setting RGB colors for your git information.
+`glit` expressions also support inline format expressions to do things like making text red or bold or italic, making your background white, or setting RGB colors for your git information.
 
 `glit` will only accept your format string if your current directory is a **git repository**.
 
@@ -159,7 +173,7 @@ $ glit "\b"
 $ glit "\b('on branch ')"
 ```
 
-Expressions generally only render any output if their corresponding values aren't empty; in other words, if there are no added files, `glit` will not produce `A0` as the output of `\A`.
+Expressions generally only render any output if their corresponding values aren't empty; in other words, if there are no added files, `glit` will not produce `A0` as the output of `\A`, but instead will output an empty string.
 
 ### Group Expressions
 
@@ -184,38 +198,38 @@ $ glit "\b\<\M>"
 
 Glitter expressions support ANSI terminal formatting through the following styles:
 
-| Format               | Meaning                     |
-|:---------------------|:----------------------------|
-| `#~(`...`)`          | reset                       |
-| `#_(`...`)`          | underline                   |
-| `#i(`...`)`          | italic text                 |
-| `#*(`...`)`          | bold text                   |
-| `#r(`...`)`          | red text                    |
-| `#g(`...`)`          | green text                  |
-| `#b(`...`)`          | blue text                   |
-| `#m(`...`)`          | magenta/purple text         |
-| `#y(`...`)`          | yellow text                 |
-| `#w(`...`)`          | white text                  |
-| `#k(`...`)`          | bright black text           |
-| `#[01,02,03](`...`)` | 24 bit RGB text color       |
-| `#R(`...`)`          | red background              |
-| `#G(`...`)`          | green background            |
-| `#B(`...`)`          | blue background             |
-| `#M(`...`)`          | magenta/purple background   |
-| `#Y(`...`)`          | yellow background           |
-| `#W(`...`)`          | white background            |
-| `#K(`...`)`          | bright black background     |
-| `#{01,02,03}(`...`)` | 24 bit RGB background color |
-| `#01(`...`)`         | Fixed terminal color        |
+| Format                   | Meaning                     |
+|:---------    ------------|:----------------------------|
+| `#~(` '...' `)`          | reset                       |
+| `#_(` '...' `)`          | underline                   |
+| `#i(` '...' `)`          | italic text                 |
+| `#*(` '...' `)`          | bold text                   |
+| `#r(` '...' `)`          | red text                    |
+| `#g(` '...' `)`          | green text                  |
+| `#b(` '...' `)`          | blue text                   |
+| `#m(` '...' `)`          | magenta/purple text         |
+| `#y(` '...' `)`          | yellow text                 |
+| `#w(` '...' `)`          | white text                  |
+| `#k(` '...' `)`          | bright black text           |
+| `#[01,02,03](` '...' `)` | 24 bit RGB text color       |
+| `#R(` '...' `)`          | red background              |
+| `#G(` '...' `)`          | green background            |
+| `#B(` '...' `)`          | blue background             |
+| `#M(` '...' `)`          | magenta/purple background   |
+| `#Y(` '...' `)`          | yellow background           |
+| `#W(` '...' `)`          | white background            |
+| `#K(` '...' `)`          | bright black background     |
+| `#{01,02,03}(` '...' `)` | 24 bit RGB background color |
+| `#01(` '...' `)`         | Fixed terminal color        |
 
 Format styles can be combined in a single expression by separating them with semicolons:
 
-| Format         | Meaning                        |
-|:---------------|:-------------------------------|
-| `#w;K(`...`)`  | white text, black background   |
-| `#r;*(`...`)`  | red bold text                  |
-| `#42(`...`)`   | a forest greenish color        |
-| `#_;*(`...`)`  | underline bold text            |
+| Format             | Meaning                        |
+|:---------    ------|:-------------------------------|
+| `#w;K(` '...' `)`  | white text, black background   |
+| `#r;*(` '...' `)`  | red bold text                  |
+| `#42(` '...' `)`   | a forest greenish color        |
+| `#_;*(` '...' `)`  | underline bold text            |
 
 ```
 $ glit "#r;*('hello world')"
