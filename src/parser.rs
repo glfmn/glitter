@@ -319,10 +319,6 @@ fn string_contents(input: &[u8]) -> IResult<&[u8], Vec<u8>> {
     let (i1, c1) = try_parse!(input, take!(1));
     match c1 {
         b"\'" => IResult::Done(input, vec![]),
-        b"\\" => {
-            let (i2, c2) = try_parse!(i1, take!(1));
-            string_contents(i2).map(|done| concat_slice_vec(c2, done))
-        }
         c => string_contents(i1).map(|done| concat_slice_vec(c, done)),
     }
 }

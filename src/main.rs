@@ -144,7 +144,8 @@ enum Mode<'a> {
         /// Path of the git repository to check
         path: &'a str,
         /// Format string to parse
-        format: &'a str
+        format: &'a str,
+        else_format: Option<&'a str>
     },
     Verify {
         /// Format string to parse
@@ -165,6 +166,7 @@ impl<'a> Mode<'a> {
             Mode::Glitter {
                 path: matches.value_of("path").unwrap_or("."),
                 format: matches.value_of("FORMAT").unwrap(),
+                else_format: matches.value_of("else")
             }
         }
     }
@@ -194,7 +196,8 @@ fn main() {
             (about: crate_description!())
             (after_help: DESC)
             (@arg FORMAT: +required "pretty-printing format specification")
-            (@arg path: -p --path +takes_value "path to test [default \".\"]")
+            (@arg path: -p --path +takes_value "path to repository [default \".\"]")
+            (@arg else: -e --else +takes_value "format to use outside of a repository")
             (@setting ArgsNegateSubcommands)
             (@setting SubcommandsNegateReqs)
             (@subcommand isrepo =>
@@ -219,7 +222,7 @@ fn main() {
                 }
             },
             // Parse pretty format and insert git status
-            Mode::Glitter{ path, format } => {
+            Mode::Glitter{ path, format, else_format } => {
                 match Repository::discover(path) {
                     Ok(mut repo) => {
                         let parse = parser::expression_tree(format.as_bytes()).to_result();
@@ -238,7 +241,26 @@ fn main() {
                             },
                         }
                     },
-                    Err(_) => Err(BadPath(Box::new(path))),
+                    Err(_) => {
+                        match else_format {
+                            Some(fmt) => {
+                                match parser::expression_tree(fmt.as_bytes()).to_result() {
+                                    Err(_) => Err(BadFormat(Box::new(format))),
+                                    Ok(parsed) => {
+                                        let int = interpreter::Interpreter::new(Default::default());
+                                        match int.evaluate(&parsed) {
+                                            Ok(result) => {
+                                                println!("{}", result);
+                                                Ok(())
+                                            },
+                                            Err(_) => Err(BadFormat(Box::new(format))),
+                                        }
+                                    }
+                                }
+                            },
+                            None => Err(BadPath(Box::new(path))),
+                        }
+                    },
                 }
             },
             Mode::Verify { format } => {
