@@ -1,8 +1,8 @@
 #!/usr/bin/env sh
 # pre-commit.sh
 
-STASH_NAME="pre-commit-$(date +%s)"
 BRANCH_NAME=$(git branch | grep '*' | sed 's/* //')
+STASH_NAME="pre-commit-$BRANCH_NAME-$(date +%s)"
 RED='\033[1;31m'
 GREEN='\033[1;32m'
 YELLOW='\033[1;33m'
