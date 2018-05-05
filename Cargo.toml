@@ -13,7 +13,7 @@ exclude = [
 
 [dependencies]
 ansi_term = "0.11"
-git2 = "0.6.10"
+git2 = "0.7.1"
 clap = "~2.29"
 nom = "^3.2"
 

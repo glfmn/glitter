@@ -54,28 +54,28 @@ impl Stats {
             for status in statuses.iter() {
                 let flags = status.status();
 
-                if check(flags, git2::STATUS_WT_NEW) {
+                if check(flags, git2::Status::WT_NEW) {
                     st.untracked += 1;
                 }
-                if check(flags, git2::STATUS_INDEX_NEW) {
+                if check(flags, git2::Status::INDEX_NEW) {
                     st.added_staged += 1;
                 }
-                if check(flags, git2::STATUS_WT_MODIFIED) {
+                if check(flags, git2::Status::WT_MODIFIED) {
                     st.modified += 1;
                 }
-                if check(flags, git2::STATUS_INDEX_MODIFIED) {
+                if check(flags, git2::Status::INDEX_MODIFIED) {
                     st.modified_staged += 1;
                 }
-                if check(flags, git2::STATUS_INDEX_RENAMED) {
+                if check(flags, git2::Status::INDEX_RENAMED) {
                     st.renamed += 1;
                 }
-                if check(flags, git2::STATUS_WT_DELETED) {
+                if check(flags, git2::Status::WT_DELETED) {
                     st.deleted += 1;
                 }
-                if check(flags, git2::STATUS_INDEX_DELETED) {
+                if check(flags, git2::Status::INDEX_DELETED) {
                     st.deleted_staged += 1;
                 }
-                if check(flags, git2::STATUS_CONFLICTED) {
+                if check(flags, git2::Status::CONFLICTED) {
                     st.conflicts += 1;
                 }
             }
