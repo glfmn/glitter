@@ -1,14 +1,16 @@
 use std::fmt;
 use std::str;
-use rand::{Rand, Rng};
 
+#[cfg(test)]
+use rand::{Rand, Rng};
 #[cfg(test)]
 use quickcheck::{Arbitrary, Gen};
 
 /// All valid expression names
 ///
 /// Defines the "standard library" of named expressions which represent git stats
-#[derive(Debug, PartialEq, Eq, Copy, Clone, Rand)]
+#[cfg_attr(test, derive(Rand))]
+#[derive(Debug, PartialEq, Eq, Copy, Clone)]
 pub enum Name {
     Backslash,
     Branch,
@@ -63,7 +65,8 @@ impl Arbitrary for Name {
 /// All valid style markers
 ///
 /// Defines the range of possible styles
-#[derive(Debug, PartialEq, Eq, Copy, Clone, Rand)]
+#[cfg_attr(test, derive(Rand))]
+#[derive(Debug, PartialEq, Eq, Copy, Clone)]
 pub enum Style {
     /// Reset text to plain terminal style; ANSI code 00 equivalent
     Reset,
@@ -214,6 +217,7 @@ pub enum Expression {
 }
 
 
+#[cfg(test)]
 impl Rand for Expression {
     fn rand<R: Rng>(rng: &mut R) -> Self {
         use self::Expression::{ Named, Literal, Group, Format };
@@ -319,6 +323,7 @@ impl Tree {
 }
 
 
+#[cfg(test)]
 impl Rand for Tree {
     fn rand<R: Rng>(rng: &mut R) -> Self {
         let mut sub = vec![];
