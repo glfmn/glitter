@@ -435,7 +435,7 @@ mod test {
     use super::*;
 
     quickcheck! {
-        fn disp_parse_idempotent(expect: Expression) -> bool {
+        fn disp_parse_invariant(expect: Expression) -> bool {
             let test = format!("{}", expect);
             println!("{} from {:?}", test, expect);
             let parse = expression(test.as_bytes());
