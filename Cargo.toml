@@ -18,6 +18,4 @@ clap = "~2.29"
 nom = "^3.2"
 
 [dev-dependencies]
-rand = "0.3"
-rand_derive = "0.3"
-quickcheck = "0.4"
+proptest = "0.8.6"

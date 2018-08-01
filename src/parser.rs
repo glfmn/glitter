@@ -433,16 +433,18 @@ pub fn expression(input: &[u8]) -> IResult<&[u8],Expression> {
 #[cfg(test)]
 mod test {
     use super::*;
+    use ast::arb_expression;
 
-    quickcheck! {
-        fn disp_parse_invariant(expect: Expression) -> bool {
+    proptest! {
+        #[test]
+        fn disp_parse_invariant(expect in arb_expression()) {
             let test = format!("{}", expect);
             println!("{} from {:?}", test, expect);
             let parse = expression(test.as_bytes());
             println!("\t parsed => {:?}", parse);
             let parse = parse.unwrap().1;
-            println!("expect {} == {}\n", expect, parse);
-            parse == expect
+            println!("expect {} ==\nresult {}\n", expect, parse);
+            assert!(parse == expect)
         }
     }
 

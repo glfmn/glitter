@@ -128,7 +128,6 @@ impl Interpreter {
         Ok(val)
     }
 
-
     #[inline(always)]
     fn optional_prefix<V1: fmt::Display + Empty, V2: fmt::Display>(&self,
         sub: &Tree,
@@ -235,30 +234,35 @@ impl Interpreter {
 mod test {
 
     use super::*;
+    use ast;
     use ast::{Name, Expression, Tree};
     use git::Stats;
-    use quickcheck::TestResult;
+    use proptest::strategy::Strategy;
 
-    quickcheck! {
-        fn empty_stats_empty_result(name: Name) -> TestResult {
+    proptest! {
+        #[test]
+        fn empty_stats_empty_result(
+            name in ast::arb_name()
+                .prop_filter("Backslash is never empty".to_owned(),
+                             |n| *n != Name::Backslash)
+                .prop_filter("Quote is never empty".to_owned(),
+                             |n| *n != Name::Quote)
+        ) {
+
             let stats: Stats = Default::default();
 
             let interpreter = Interpreter::new(stats);
 
-            // Create valid expressions with empty arguments if arguments are necessary, discard
-            // tests which represent illegal literal characters since they produe an output
-            let exp = match name {
-                Name::Quote | Name::Backslash => return TestResult::discard(),
-                name @ _ => Expression::Named { name, sub: Tree::new() },
-            };
+            let exp = Expression::Named { name, sub: Tree::new() };
 
             match interpreter.evaluate(&Tree(vec![exp.clone()])) {
                 Ok(res) => {
                     println!("interpreted {} as {}", exp, res);
-                    TestResult::from_bool(res.is_empty())
+                    assert!(res.is_empty())
                 },
-                Err(_) => {
-                    TestResult::discard()
+                Err(e) => {
+                    println!("{:?}", e);
+                    ()
                 }
             }
         }
