@@ -1,8 +1,8 @@
-use std::fmt;
-#[cfg(test)]
-use proptest::prelude::*;
 #[cfg(test)]
 use proptest::collection::vec;
+#[cfg(test)]
+use proptest::prelude::*;
+use std::fmt;
 
 /// All valid expression names
 ///
@@ -25,7 +25,6 @@ pub enum Name {
     Stashed,
     Quote,
 }
-
 
 impl fmt::Display for Name {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -73,7 +72,6 @@ pub fn arb_name() -> impl Strategy<Value = Name> {
     ]
 }
 
-
 /// All valid style markers
 ///
 /// Defines the range of possible styles
@@ -116,9 +114,9 @@ pub enum Style {
     /// Make the text background white; ANSI code 47 equivalent
     BgWhite,
     /// Provide a 256 color table text color value; ANSI code 38 equivalent
-    FgRGB(u8,u8,u8),
+    FgRGB(u8, u8, u8),
     /// Provide a 256 color table text background color value; ANSI code 48 equivalent
-    BgRGB(u8,u8,u8),
+    BgRGB(u8, u8, u8),
     /// Make the text bright black; ANSI code 90 equivalent
     FgBlack,
     /// Make the text background bright black; ANSI code 100 equivalent
@@ -126,7 +124,6 @@ pub enum Style {
     /// Provide a raw number escape code to represent terminal formatting
     Number(u8),
 }
-
 
 impl fmt::Display for Style {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -149,8 +146,8 @@ impl fmt::Display for Style {
             &Style::BgCyan => "C".to_string(),
             &Style::FgWhite => "w".to_string(),
             &Style::BgWhite => "W".to_string(),
-            &Style::FgRGB(r,g,b) => format!( "[{},{},{}]",  r,g,b),
-            &Style::BgRGB(r,g,b) => format!("{{{},{},{}}}", r,g,b),
+            &Style::FgRGB(r, g, b) => format!("[{},{},{}]", r, g, b),
+            &Style::BgRGB(r, g, b) => format!("{{{},{},{}}}", r, g, b),
             &Style::FgBlack => "k".to_string(),
             &Style::BgBlack => "K".to_string(),
             &Style::Number(n) => n.to_string(),
@@ -163,7 +160,7 @@ impl fmt::Display for Style {
 pub fn arb_style() -> impl Strategy<Value = Style> {
     use self::Style::*;
 
-    prop_oneof! [
+    prop_oneof![
         Just(Reset),
         Just(Bold),
         Just(Underline),
@@ -182,14 +179,13 @@ pub fn arb_style() -> impl Strategy<Value = Style> {
         Just(BgCyan),
         Just(FgWhite),
         Just(BgWhite),
-        any::<(u8,u8,u8)>().prop_map(|(r, g, b)| FgRGB(r,g,b)),
-        any::<(u8,u8,u8)>().prop_map(|(r, g, b)| BgRGB(r,g,b)),
+        any::<(u8, u8, u8)>().prop_map(|(r, g, b)| FgRGB(r, g, b)),
+        any::<(u8, u8, u8)>().prop_map(|(r, g, b)| BgRGB(r, g, b)),
         Just(FgBlack),
         Just(BgBlack),
         any::<u8>().prop_map(|n| Number(n)),
     ]
 }
-
 
 /// The types of possible expressions which form an expression tree
 ///
@@ -233,10 +229,7 @@ pub enum Expression {
         sub: Tree,
     },
     /// An expression which represents terminal text formatting
-    Format {
-        style: Vec<Style>,
-        sub: Tree,
-    },
+    Format { style: Vec<Style>, sub: Tree },
     /// A group of sub-expressions which forms an expression tree
     Group {
         /// Left delimiter
@@ -261,10 +254,12 @@ impl fmt::Display for Expression {
                     write!(f, "({})", sub)?;
                     Ok(())
                 }
-            },
-            &Expression::Group { ref l, ref r, ref sub } => {
-                write!(f, "\\{}{}{}", l, sub, r)
-            },
+            }
+            &Expression::Group {
+                ref l,
+                ref r,
+                ref sub,
+            } => write!(f, "\\{}{}{}", l, sub, r),
             &Expression::Format { ref style, ref sub } => {
                 write!(f, "#")?;
                 if let Some((first, ss)) = style.split_first() {
@@ -285,31 +280,49 @@ pub fn arb_expression() -> impl Strategy<Value = Expression> {
     use self::Expression::*;
 
     let leaf = prop_oneof![
-        arb_name()
-            .prop_map(|name| Named { name: name, sub: Tree::new(), }),
-        vec(arb_style(), 1..5)
-            .prop_map(|style| Format { style: style, sub: Tree::new(), }),
+        arb_name().prop_map(|name| Named {
+            name: name,
+            sub: Tree::new(),
+        }),
+        vec(arb_style(), 1..5).prop_map(|style| Format {
+            style: style,
+            sub: Tree::new(),
+        }),
         "[^']*".prop_map(Literal),
     ];
 
-    leaf.prop_recursive(8, 64, 10, |inner| prop_oneof![
-        (arb_name(), vec(inner.clone(), 0..10))
-            .prop_map(|(name, sub)| Named { name: name, sub: Tree(sub) }),
-        (vec(arb_style(), 1..10), vec(inner.clone(), 0..10))
-            .prop_map(|(style, sub)| Format { style: style, sub: Tree(sub) }),
-        vec(inner.clone(), 0..10).prop_map(|sub| 
-            Group { l: "{".to_string(), r: "}".to_string(), sub: Tree(sub) }
-        ),
-        vec(inner.clone(), 0..10).prop_map(|sub| 
-            Group { l: "(".to_string(), r: ")".to_string(), sub: Tree(sub) }
-        ),
-        vec(inner.clone(), 0..10).prop_map(|sub| 
-            Group { l: "<".to_string(), r: ">".to_string(), sub: Tree(sub) }
-        ),
-        vec(inner.clone(), 0..10).prop_map(|sub| 
-            Group { l: "[".to_string(), r: "]".to_string(), sub: Tree(sub) }
-        ),
-    ])
+    leaf.prop_recursive(8, 64, 10, |inner| {
+        prop_oneof![
+            (arb_name(), vec(inner.clone(), 0..10)).prop_map(|(name, sub)| Named {
+                name: name,
+                sub: Tree(sub)
+            }),
+            (vec(arb_style(), 1..10), vec(inner.clone(), 0..10)).prop_map(|(style, sub)| Format {
+                style: style,
+                sub: Tree(sub)
+            }),
+            vec(inner.clone(), 0..10).prop_map(|sub| Group {
+                l: "{".to_string(),
+                r: "}".to_string(),
+                sub: Tree(sub)
+            }),
+            vec(inner.clone(), 0..10).prop_map(|sub| Group {
+                l: "(".to_string(),
+                r: ")".to_string(),
+                sub: Tree(sub)
+            }),
+            vec(inner.clone(), 0..10).prop_map(|sub| Group {
+                l: "<".to_string(),
+                r: ">".to_string(),
+                sub: Tree(sub)
+            }),
+            vec(inner.clone(), 0..10).prop_map(|sub| Group {
+                l: "[".to_string(),
+                r: "]".to_string(),
+                sub: Tree(sub)
+            }),
+        ]
+    })
 }
 
 /// A collection of expressions which may recursively form an expression tree
@@ -319,14 +332,12 @@ pub fn arb_expression() -> impl Strategy<Value = Expression> {
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Tree(pub Vec<Expression>);
 
-
 impl Tree {
     /// Create an empty tree
     pub fn new() -> Tree {
         Tree(Vec::new())
     }
 }
-
 
 impl fmt::Display for Tree {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -336,7 +347,6 @@ impl fmt::Display for Tree {
         Ok(())
     }
 }
-
 
 #[cfg(test)]
 pub fn arb_tree(n: usize) -> impl Strategy<Value = Tree> {

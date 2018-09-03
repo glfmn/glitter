@@ -1,8 +1,7 @@
 use git2;
-use git2::{Repository, Branch, BranchType};
-use std::ops::{AddAssign, BitAnd};
+use git2::{Branch, BranchType, Repository};
 use std::fmt::Write;
-
+use std::ops::{AddAssign, BitAnd};
 
 /// Stats which the interpreter uses to populate the gist expression
 #[derive(Debug, PartialEq, Eq, Default, Clone)]
@@ -35,7 +34,6 @@ pub struct Stats {
     pub remote: String,
 }
 
-
 impl Stats {
     /// Populate stats with the status of the given repository
     pub fn new(repo: &mut Repository) -> Result<Stats, git2::Error> {
@@ -45,8 +43,7 @@ impl Stats {
 
         let mut opts = git2::StatusOptions::new();
 
-        opts.include_untracked(true)
-            .recurse_untracked_dirs(true);
+        opts.include_untracked(true).recurse_untracked_dirs(true);
 
         {
             let statuses = repo.statuses(Some(&mut opts))?;
@@ -81,7 +78,7 @@ impl Stats {
             }
         }
 
-        repo.stash_foreach(|_, &_, &_,| {
+        repo.stash_foreach(|_, &_, &_| {
             st.stashes += 1;
             true
         })?;
@@ -118,13 +115,12 @@ impl Stats {
                 } else {
                     "HEAD".to_string()
                 }
-            },
+            }
             Err(ref err) if err.code() == git2::ErrorCode::BareRepo => "master".to_string(),
             Err(_) if repo.is_empty().unwrap_or(false) => "master".to_string(),
             Err(_) => "HEAD".to_string(),
         };
     }
-
 
     /// Read name of the upstream branch
     fn read_upstream_name(&mut self, repo: &Repository, branch: &str) {
@@ -146,11 +142,10 @@ impl Stats {
                     }
                     _ => String::new(),
                 }
-            },
+            }
             _ => String::new(),
         };
     }
-
 
     /// Read ahead-behind information between the local and upstream branches
     fn read_ahead_behind(&mut self, repo: &Repository, local: &Branch, upstream: &Branch) {
@@ -182,6 +177,8 @@ impl AddAssign for Stats {
 /// Check the bits of a flag against the value to see if they are set
 #[inline]
 fn check<B>(val: B, flag: B) -> bool
-    where B: BitAnd<Output=B> + PartialEq + Copy {
+where
+    B: BitAnd<Output = B> + PartialEq + Copy,
+{
     val & flag == flag
 }
