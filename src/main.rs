@@ -85,11 +85,11 @@ extern crate clap;
 extern crate git2;
 extern crate glitter_lang;
 
-use glitter_lang::interpreter;
-use glitter_lang::parser;
-use glitter_lang::git;
 use clap::ArgMatches;
 use git2::Repository;
+use glitter_lang::git;
+use glitter_lang::interpreter;
+use glitter_lang::parser;
 
 const DESC: &'static str = "Glitter is a git repository status pretty-printing utility, useful for
 making custom prompts which incorporate information about the current

@@ -108,7 +108,6 @@
 //! | `#42(`...`)`   | a forest greenish color        |
 //! | `#_;*(`...`)`  | underline bold text            |
 
-
 extern crate ansi_term;
 extern crate git2;
 #[macro_use]
