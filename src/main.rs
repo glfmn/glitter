@@ -108,22 +108,14 @@
 //! | `#42(`...`)`   | a forest greenish color        |
 //! | `#_;*(`...`)`  | underline bold text            |
 
-extern crate ansi_term;
 #[macro_use]
 extern crate clap;
 extern crate git2;
-#[macro_use]
-extern crate nom;
+extern crate glitter_lang;
 
-#[cfg_attr(test, macro_use)]
-#[cfg(test)]
-extern crate proptest;
-
-mod ast;
-mod git;
-mod interpreter;
-mod parser;
-
+use glitter_lang::interpreter;
+use glitter_lang::parser;
+use glitter_lang::git;
 use clap::ArgMatches;
 use git2::Repository;
 

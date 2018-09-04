@@ -12,10 +12,6 @@ exclude = [
 ]
 
 [dependencies]
-ansi_term = "0.11"
-git2 = "0.7.1"
 clap = "~2.29"
-nom = "^3.2"
-
-[dev-dependencies]
-proptest = "0.8.6"
+git2 = "0.7.1"
+glitter-lang = { version = "0.1.3", path = "glitter-lang" }
