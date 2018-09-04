@@ -10,3 +10,8 @@ nom = "^3.2"
 
 [dev-dependencies]
 proptest = "0.8.6"
+criterion = "0.2"
+
+[[bench]]
+name = "interpreter"
+harness = false
