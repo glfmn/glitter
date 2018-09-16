@@ -114,12 +114,10 @@ extern crate clap;
 extern crate git2;
 #[macro_use]
 extern crate nom;
-extern crate rand;
-#[macro_use]
-extern crate rand_derive;
 
-#[cfg(test)] #[macro_use]
-#[cfg(test)] extern crate quickcheck;
+#[cfg_attr(test, macro_use)]
+#[cfg(test)]
+extern crate proptest;
 
 mod ast;
 mod git;
@@ -145,28 +143,28 @@ enum Mode<'a> {
         path: &'a str,
         /// Format string to parse
         format: &'a str,
-        else_format: Option<&'a str>
+        else_format: Option<&'a str>,
     },
     Verify {
         /// Format string to parse
-        format: &'a str
+        format: &'a str,
     },
 }
 
 impl<'a> Mode<'a> {
     fn from_matches(matches: &'a ArgMatches) -> Self {
         if let Some(matches) = matches.subcommand_matches("isrepo") {
-            return Mode::IsRepo(matches.value_of("path").unwrap_or("."))
+            return Mode::IsRepo(matches.value_of("path").unwrap_or("."));
         };
         if let Some(matches) = matches.subcommand_matches("verify") {
             Mode::Verify {
-                format: matches.value_of("FORMAT").unwrap()
+                format: matches.value_of("FORMAT").unwrap(),
             }
         } else {
             Mode::Glitter {
                 path: matches.value_of("path").unwrap_or("."),
                 format: matches.value_of("FORMAT").unwrap(),
-                else_format: matches.value_of("else")
+                else_format: matches.value_of("else"),
             }
         }
     }
@@ -210,58 +208,54 @@ fn main() {
             )
         ).get_matches();
 
-        use ProgramErr::{BadFormat, BadPath, BadParse};
+        use ProgramErr::{BadFormat, BadParse, BadPath};
 
         // Carry out primary program operation
         let error: Result<(), ProgramErr> = match Mode::from_matches(&matches) {
             // Determine whether the given path is a git repository
-            Mode::IsRepo(path) => {
-                match Repository::discover(path) {
-                    Ok(_) => Ok(()),
-                    Err(_) => Err(BadPath(Box::new(path))),
-                }
+            Mode::IsRepo(path) => match Repository::discover(path) {
+                Ok(_) => Ok(()),
+                Err(_) => Err(BadPath(Box::new(path))),
             },
             // Parse pretty format and insert git status
-            Mode::Glitter{ path, format, else_format } => {
-                match Repository::discover(path) {
-                    Ok(mut repo) => {
-                        let parse = parser::expression_tree(format.as_bytes()).to_result();
-                        match parse {
-                            Err(_) => Err(BadFormat(Box::new(format))),
-                            Ok(parsed) => {
-                                let stats = git::Stats::new(&mut repo);
-                                let interpreter = interpreter::Interpreter::new(stats.unwrap());
-                                match interpreter.evaluate(&parsed) {
-                                    Ok(result) => {
-                                        println!("{}", result);
-                                        Ok(())
-                                    },
-                                    Err(_) => Err(BadFormat(Box::new(format))),
+            Mode::Glitter {
+                path,
+                format,
+                else_format,
+            } => match Repository::discover(path) {
+                Ok(mut repo) => {
+                    let parse = parser::expression_tree(format.as_bytes()).to_result();
+                    match parse {
+                        Err(_) => Err(BadFormat(Box::new(format))),
+                        Ok(parsed) => {
+                            let stats = git::Stats::new(&mut repo);
+                            let interpreter = interpreter::Interpreter::new(stats.unwrap());
+                            match interpreter.evaluate(&parsed) {
+                                Ok(result) => {
+                                    println!("{}", result);
+                                    Ok(())
                                 }
-                            },
+                                Err(_) => Err(BadFormat(Box::new(format))),
+                            }
                         }
-                    },
-                    Err(_) => {
-                        match else_format {
-                            Some(fmt) => {
-                                match parser::expression_tree(fmt.as_bytes()).to_result() {
-                                    Err(_) => Err(BadFormat(Box::new(format))),
-                                    Ok(parsed) => {
-                                        let int = interpreter::Interpreter::new(Default::default());
-                                        match int.evaluate(&parsed) {
-                                            Ok(result) => {
-                                                println!("{}", result);
-                                                Ok(())
-                                            },
-                                            Err(_) => Err(BadFormat(Box::new(format))),
-                                        }
-                                    }
-                                }
-                            },
-                            None => Err(BadPath(Box::new(path))),
-                        }
-                    },
+                    }
                 }
+                Err(_) => match else_format {
+                    Some(fmt) => match parser::expression_tree(fmt.as_bytes()).to_result() {
+                        Err(_) => Err(BadFormat(Box::new(format))),
+                        Ok(parsed) => {
+                            let int = interpreter::Interpreter::new(Default::default());
+                            match int.evaluate(&parsed) {
+                                Ok(result) => {
+                                    println!("{}", result);
+                                    Ok(())
+                                }
+                                Err(_) => Err(BadFormat(Box::new(format))),
+                            }
+                        }
+                    },
+                    None => Err(BadPath(Box::new(path))),
+                },
             },
             Mode::Verify { format } => {
                 let parse = parser::expression_tree(format.as_bytes());
@@ -272,11 +266,11 @@ fn main() {
                         Err(_) => Err(BadFormat(Box::new(format))),
                         Ok(parsed) => {
                             if format!("{}", parsed) != format {
-                                Err(BadParse(Box::new(format), format!("{}",parsed)))
+                                Err(BadParse(Box::new(format), format!("{}", parsed)))
                             } else {
                                 Ok(())
                             }
-                        },
+                        }
                     }
                 }
             }
@@ -288,15 +282,18 @@ fn main() {
             Err(BadPath(path)) => {
                 eprintln!("\"{}\" is not a git repository", path);
                 Exit::Failure(1)
-            },
+            }
             Err(BadFormat(format)) => {
                 eprintln!("unable to parse format specifier \"{}\"", format);
                 Exit::Failure(1)
-            },
+            }
             Err(BadParse(format, parsed)) => {
-                eprintln!("parsed \"{}\" does not match provided \"{}\"", parsed, format);
+                eprintln!(
+                    "parsed \"{}\" does not match provided \"{}\"",
+                    parsed, format
+                );
                 Exit::Failure(1)
-            },
+            }
         }
     };
 
