@@ -162,7 +162,43 @@ fn tree_length(c: &mut Criterion) {
     );
 }
 
-fn style_length(c: &mut Criterion) {}
+fn style_length(c: &mut Criterion) {
+    use Expression::*;
+    use Style::*;
 
-criterion_group!(interpreter, empty_stats, nested_named, tree_length);
+    macro_rules! n_styles {
+        ($n:expr) => {
+            |b: &mut Bencher, s: &Stats| {
+                let styles = Tree(vec![
+                    Format {
+                        style: std::iter::repeat(Bold).take($n).collect(),
+                        sub: Tree(Vec::new()),
+                    }
+                ]);
+                let i = Interpreter::new(s.clone());
+                b.iter(|| i.evaluate(&styles))
+            }
+        };
+    }
+
+    c.bench_functions(
+        "style length",
+        vec![
+            Fun::new("2 styles", n_styles!(2)),
+            Fun::new("4 styles", n_styles!(4)),
+            Fun::new("8 styles", n_styles!(8)),
+            Fun::new("16 styles", n_styles!(16)),
+            Fun::new("32 styles", n_styles!(32)),
+        ],
+        stats(),
+    );
+}
+
+criterion_group!(
+    interpreter,
+    empty_stats,
+    nested_named,
+    tree_length,
+    style_length,
+);
 criterion_main!(interpreter);
