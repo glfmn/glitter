@@ -1,131 +1,95 @@
-//! glitter, a git repository status pretty-printer
+//! Glitter
 //!
-//! An expression based, ergonomic language for writing the status of your git repository into
-//! your shell prompt.
+//! # Usage
 //!
-//! For example :`"\<\b\(\+\-)>\[\M\A\R\D':'\m\a\u\d]\{\h('@')}':'"` results in something that
-//! might look like `<master(+1)>[M1:D3]{@5}:` where
+//! Basic usage for `glit` is:
 //!
-//! - `master` is the name of the current branch.
-//! - `+1`: means we are 1 commit ahead of the remote branch
-//! - `M1`: the number of staged modifications
-//! - `D3`: is the number of unstaged deleted files
-//! - `@5`: is the number of stashes
+//! ```
+//! $ glit <FORMAT>
+//! ```
 //!
-//! `glit` expressions also support inline format expressions to do things like making text red,
-//! or bold, or using ANSI terminal escape sequences, or setting RGB colors for your git
-//! information.
+//! Learn more and get help with:
 //!
-//! # Grammar
+//! ```
+//! $ glit help
+//! ```
 //!
-//! `glit` expressions have four basic types of expressions:
+//! ## Setting your shell to use `glit`
 //!
-//! 1. Named expressions
-//! 2. Format expressions
-//! 3. Group expressions
-//! 4. Literals
+//! Too add a glitter format to your shell prompt if you are in a bash shell, add the
+//! following snippet to your `~/.bashrc`:
 //!
-//! ## Literals
+//! ```bash
+//! # Use environment variables to store formats if you want to be able to easily
+//! # change them from your shell by just doing:
+//! #
+//! #   $ export PS1_FMT="#r;*('TODO')"
 //!
-//! Any characters between single quotes literal, except for backslashes and single quotes.
-//! Literals are left untouched.  For example, `'literal'` outputs `literal`.
+//! # Format to use inside of git repositories or their sub-folders
+//! export PS1_FMT="\<#m;*(\b)#m(\B(#~('..')))\(#g(\+)#r(\-))>\[#g;*(\M\A\R\D)#r;*(\m\a\u\d)]\{#m;*;_(\h('@'))}':'#y;*('\w')'\n\$ '"
 //!
-//! ## Named expressions
+//! # Format to use outside of git repositories
+//! export PS1_ELSE_FMT="#g(#*('\u')'@\h')':'#b;*('\w')'\$ '"
 //!
-//! Named expressions represent information about your git repository.
+//! # Prompt command which is used to set the prompt, includes some extra useful
+//! # functionality such as showing the last exit code
+//! __set_prompt() {
+//!     local EXIT="$?"
+//!     # Capture last command exit flag first
 //!
-//! | Name  | Meaning                        | Example         |
-//! |:------|:-------------------------------|:----------------|
-//! | `\b`  | branch name or head commit id  | `master`        |
-//! | `\B`  | remote name                    | `origin/master` |
-//! | `\+`  | # of commits ahead remote      | `+1`            |
-//! | `\-`  | # of commits behind remote     | `-1`            |
-//! | `\m`  | # of unstaged modified files   | `M1`            |
-//! | `\a`  | # of untracked files           | `?1`            |
-//! | `\d`  | # of unstaged deleted files    | `D1`            |
-//! | `\u`  | # of merge conflicts           | `U1`            |
-//! | `\M`  | # of staged modified files     | `M1`            |
-//! | `\A`  | # of added files               | `A1`            |
-//! | `\R`  | # of renamed files             | `R1`            |
-//! | `\D`  | # of staged deleted files      | `D1`            |
-//! | `\h`  | # of stashed files             | `H1`            |
+//!     # Clear out prompt
+//!     PS1=""
 //!
-//! You can provide other expressions as arguments to expressions which replace the default prefix
-//! which appears before the result or file count.  For example, `\h('@')` will output `@3`
-//! instead of `H3` if your repository has 3 stashed files.  You can provide an arbitrary number
-//! of valid expressions as a prefix to another named expression.
+//!     # If the last command didn't exit 0, display the exit code
+//!     [ "$EXIT" -ne "0" ] && PS1+="$EXIT "
 //!
-//! ## Group Expressions
+//!     # identify debian chroot, if one exists
+//!     if [ -z "${debian_chroot:-}" ] && [ -r /etc/debian_chroot ]; then
+//!       PS1+="${debian_chroot:+($(cat /etc/debian_chroot))}"
+//!     fi
 //!
-//! Glitter will surround grouped expressions with parentheses or brackets, and will print nothing
-//! if the group is empty.
+//!     # Render the appropriate format depending on whether we are in a git repo
+//!     PS1+="$(glit "$PS1_FMT" -e "$PS1_ELSE_FMT")"
+//! }
 //!
-//! | Macro       | Result                           |
-//! |:------------|:---------------------------------|
-//! | `\[]`       | empty                            |
-//! | `\()`       | empty                            |
-//! | `\<>`       | empty                            |
-//! | `\{}`       | empty                            |
-//! | `\{\b}`     | `{master}`                       |
-//! | `\<\+\->`   | `<+1-1>`                         |
-//! | `\[\M\A\R]` | `[M1A3]` where `\R` is empty     |
-//! | `\[\r\(\a)]`| empty, when `\r`, `\a` are empty |
+//! export PROMPT_COMMAND=__set_prompt
+//! ```
 //!
-//! ## Format Expressions
+//! Where the variable **PS1_FMT** contains your glitter format.  Here are a few
+//! examples you might want to try out on your system.
 //!
-//! Glitter expressions support ANSI terminal formatting through the following styles:
+//! | Example `fmt`                                                                                              | Result                                                |
+//! |:-----------------------------------------------------------------------------------------------------------|:------------------------------------------------------|
+//! | `"\<#m;*(\b)#m(\B(#~('..')))\(#g(\+)#r(\-))>\[#g;*(\M\A\R\D)#r;*(\m\a\u\d)]\{#m;*;_(\h('@'))}"`            | ![long example glitter](img/example-1.png)            |
+//! | `"\(#m;*(\b)#g(\+)#r(\-))\[#g(\M\A\R\D)#r(\m\a\u\d)]\{#m;_(\h('@'))}':'"`                                  | ![short example glitter](img/example-2.png)           |
+//! | `"#g;*(\b)#y(\B(#~('..')))\[#g(\+(#~('ahead ')))]\[#r(\-(#~('behind ')))]' '#g;_(\M\A\R\D)#r;_(\m\a\u\d)"` | ![`git status sb` example glitter](img/example-3.png) |
 //!
-//! | Format               | Meaning                                       |
-//! |:---------------------|:----------------------------------------------|
-//! | `#~(`...`)`          | reset                                         |
-//! | `#_(`...`)`          | underline                                     |
-//! | `#i(`...`)`          | italic text                                   |
-//! | `#*(`...`)`          | bold text                                     |
-//! | `#r(`...`)`          | red text                                      |
-//! | `#g(`...`)`          | green text                                    |
-//! | `#b(`...`)`          | blue text                                     |
-//! | `#m(`...`)`          | magenta/purple text                           |
-//! | `#y(`...`)`          | yellow text                                   |
-//! | `#w(`...`)`          | white text                                    |
-//! | `#k(`...`)`          | bright black text                             |
-//! | `#[01,02,03](`...`)` | 24 bit rgb text color                         |
-//! | `#R(`...`)`          | red background                                |
-//! | `#G(`...`)`          | green background                              |
-//! | `#B(`...`)`          | blue background                               |
-//! | `#M(`...`)`          | magenta/purple background                     |
-//! | `#Y(`...`)`          | yellow background                             |
-//! | `#W(`...`)`          | white background                              |
-//! | `#K(`...`)`          | bright black background                       |
-//! | `#{01,02,03}(`...`)` | 24 bit rgb background color                   |
-//! | `#01(`...`)`         | Fixed terminal color                          |
+//! # Background
 //!
-//! Format styles can be combined in a single expression by separating them with semicolons:
+//! Most shells provide the ability to customize the shell prompt which appears before every command.
+//! On my system, the default looks like:
 //!
-//! | Format         | Meaning                        |
-//! |:---------------|:-------------------------------|
-//! | `#w;K(`...`)`  | white text, black background   |
-//! | `#r;*(`...`)`  | red bold text                  |
-//! | `#42(`...`)`   | a forest greenish color        |
-//! | `#_;*(`...`)`  | underline bold text            |
+//! ```
+//! gwen@tpy12:~/Documents/dev/util/glitter$
+//! ```
+//!
+//! Its intended to provide useful information about your shell.  However, it normally does not
+//! include information about git repositories, requiring the near constant use of `git status`
+//! to understand the state of the repository.  The solution is to set a prompt command and
+//! dynamically update your shell with the information you want.  `glit` is made for precisely
+//! this purpose: you can provide a format, and glitter will interpret it, inserting the information
+//! in the format you want.
 
-extern crate ansi_term;
 #[macro_use]
 extern crate clap;
 extern crate git2;
-#[macro_use]
-extern crate nom;
-
-#[cfg_attr(test, macro_use)]
-#[cfg(test)]
-extern crate proptest;
-
-mod ast;
-mod git;
-mod interpreter;
-mod parser;
+extern crate glitter_lang;
 
 use clap::ArgMatches;
 use git2::Repository;
+use glitter_lang::git;
+use glitter_lang::interpreter;
+use glitter_lang::parser;
 
 const DESC: &'static str = "Glitter is a git repository status pretty-printing utility, useful for
 making custom prompts which incorporate information about the current
