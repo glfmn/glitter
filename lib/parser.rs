@@ -1,6 +1,6 @@
 //! Format parser, determines the syntax for pretty formats
 
-use ast::{Expression, Name, Style, Tree};
+use crate::ast::{Expression, Name, Style, Tree};
 use nom::{digit, IResult};
 use std::str::{self, Utf8Error};
 
@@ -396,7 +396,7 @@ pub fn expression(input: &[u8]) -> IResult<&[u8], Expression> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use ast::arb_expression;
+    use crate::ast::arb_expression;
 
     proptest! {
         #[test]

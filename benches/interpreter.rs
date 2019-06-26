@@ -140,8 +140,9 @@ fn tree_length(c: &mut Criterion) {
                     std::iter::repeat(Named {
                         name: Deleted,
                         sub: Tree::new(),
-                    }).take($n)
-                        .collect(),
+                    })
+                    .take($n)
+                    .collect(),
                 );
                 let i = Interpreter::new(s.clone());
                 b.iter(|| i.evaluate(&tree))
@@ -169,12 +170,10 @@ fn style_length(c: &mut Criterion) {
     macro_rules! n_styles {
         ($n:expr) => {
             |b: &mut Bencher, s: &Stats| {
-                let styles = Tree(vec![
-                    Format {
-                        style: std::iter::repeat(Bold).take($n).collect(),
-                        sub: Tree(Vec::new()),
-                    }
-                ]);
+                let styles = Tree(vec![Format {
+                    style: std::iter::repeat(Bold).take($n).collect(),
+                    sub: Tree(Vec::new()),
+                }]);
                 let i = Interpreter::new(s.clone());
                 b.iter(|| i.evaluate(&styles))
             }

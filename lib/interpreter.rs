@@ -1,9 +1,9 @@
 //! Interpreter which transforms expressions into the desired output
 
+use crate::ast::{self, Expression, Name, Style, Tree};
+use crate::git::Stats;
 use ansi_term;
 use ansi_term::{ANSIString, ANSIStrings, Colour};
-use ast::{Expression, Name, Style, Tree};
-use git::Stats;
 use std::fmt;
 
 /// Trait which determines what is empty in the eyes of the Interpreter
@@ -240,9 +240,9 @@ impl Interpreter {
 mod test {
 
     use super::*;
+    use crate::git::Stats;
     use ast;
     use ast::{Expression, Name, Tree};
-    use git::Stats;
     use proptest::strategy::Strategy;
 
     proptest! {

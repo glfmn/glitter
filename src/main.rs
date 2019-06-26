@@ -170,7 +170,8 @@ fn main() {
                 (about: "Determine if FORMAT parses correctly")
                 (@arg FORMAT: +required "pretty-printing format specification")
             )
-        ).get_matches();
+        )
+        .get_matches();
 
         use ProgramErr::{BadFormat, BadParse, BadPath};
 

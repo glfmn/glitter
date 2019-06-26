@@ -10,6 +10,7 @@ keywords = ["DSL", "git", "gist", "status", "pretty-printing"]
 exclude = [
     "img/*.gif"
 ]
+edition = "2018"
 
 [lib]
 name = "glitter_lang"
