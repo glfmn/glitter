@@ -19,7 +19,7 @@ bench = true
 
 [dependencies]
 clap = "~2.29"
-git2 = "0.7"
+git2 = "0.9"
 ansi_term = "0.11"
 nom = "^3.2"
 
