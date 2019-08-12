@@ -1,5 +1,5 @@
 use git2;
-use git2::{Branch, BranchType, Repository};
+use git2::{Branch, BranchType, Repository, Status};
 use std::fmt::Write;
 use std::ops::{AddAssign, BitAnd};
 
@@ -35,6 +35,33 @@ pub struct Stats {
 }
 
 impl Stats {
+    pub fn add_from_flags(&mut self, flags: Status) {
+        if flags.contains(git2::Status::WT_NEW) {
+            self.untracked += 1;
+        }
+        if flags.contains(git2::Status::INDEX_NEW) {
+            self.added_staged += 1;
+        }
+        if flags.contains(git2::Status::WT_MODIFIED) {
+            self.modified += 1;
+        }
+        if flags.contains(git2::Status::INDEX_MODIFIED) {
+            self.modified_staged += 1;
+        }
+        if flags.contains(git2::Status::INDEX_RENAMED) {
+            self.renamed += 1;
+        }
+        if flags.contains(git2::Status::WT_DELETED) {
+            self.deleted += 1;
+        }
+        if flags.contains(git2::Status::INDEX_DELETED) {
+            self.deleted_staged += 1;
+        }
+        if flags.contains(git2::Status::CONFLICTED) {
+            self.conflicts += 1;
+        }
+    }
+
     /// Populate stats with the status of the given repository
     pub fn new(repo: &mut Repository) -> Result<Stats, git2::Error> {
         let mut st: Stats = Default::default();
@@ -50,31 +77,7 @@ impl Stats {
 
             for status in statuses.iter() {
                 let flags = status.status();
-
-                if check(flags, git2::Status::WT_NEW) {
-                    st.untracked += 1;
-                }
-                if check(flags, git2::Status::INDEX_NEW) {
-                    st.added_staged += 1;
-                }
-                if check(flags, git2::Status::WT_MODIFIED) {
-                    st.modified += 1;
-                }
-                if check(flags, git2::Status::INDEX_MODIFIED) {
-                    st.modified_staged += 1;
-                }
-                if check(flags, git2::Status::INDEX_RENAMED) {
-                    st.renamed += 1;
-                }
-                if check(flags, git2::Status::WT_DELETED) {
-                    st.deleted += 1;
-                }
-                if check(flags, git2::Status::INDEX_DELETED) {
-                    st.deleted_staged += 1;
-                }
-                if check(flags, git2::Status::CONFLICTED) {
-                    st.conflicts += 1;
-                }
+                st.add_from_flags(flags);
             }
         }
 
@@ -172,13 +175,4 @@ impl AddAssign for Stats {
         self.conflicts += rhs.conflicts;
         self.stashes += rhs.stashes;
     }
-}
-
-/// Check the bits of a flag against the value to see if they are set
-#[inline]
-fn check<B>(val: B, flag: B) -> bool
-where
-    B: BitAnd<Output = B> + PartialEq + Copy,
-{
-    val & flag == flag
 }
