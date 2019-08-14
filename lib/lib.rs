@@ -121,3 +121,29 @@ pub mod ast;
 pub mod git;
 pub mod interpreter;
 pub mod parser;
+
+pub use git::Stats;
+
+#[derive(Debug)]
+pub enum Error {
+    InterpreterError(interpreter::InterpreterErr),
+    ParseError(parser::ParseError),
+}
+
+impl From<interpreter::InterpreterErr> for Error {
+    fn from(e: interpreter::InterpreterErr) -> Self {
+        Error::InterpreterError(e)
+    }
+}
+
+impl From<parser::ParseError> for Error {
+    fn from(e: parser::ParseError) -> Self {
+        Error::ParseError(e)
+    }
+}
+
+pub fn glitter(stats: Stats, format: String) -> Result<String, Error> {
+    let tree = parser::parse(format)?;
+    let evaled = interpreter::Interpreter::new(stats).evaluate(&tree)?;
+    Ok(evaled)
+}
