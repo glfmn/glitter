@@ -1,8 +1,9 @@
-# Glitter
 
-![](img/glit-demo.gif)
+# ✨ glitter
 
-**A domain-specific language for printing git stats in custom formats.**
+![shell prompt with glitter embedded](img/glit-demo.gif)
+
+**Git status summary with custom formats, perfect for your shell prompt**
 
 [![Crates.io](https://img.shields.io/crates/v/glit.svg)]()[![Build Status](https://travis-ci.org/glfmn/glitter.svg?branch=master)](https://travis-ci.org/glfmn/glitter)
 
@@ -37,6 +38,8 @@ Basic usage for `glit` is:
 ```
 $ glit <FORMAT>
 ```
+
+![demo of glit command](img/glit-command.gif)
 
 Learn more and get help with:
 
