@@ -246,7 +246,7 @@ dependencies = [
 name = "glit"
 version = "0.1.4"
 dependencies = [
- "ansi_term 0.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ansi_term 0.11.0 (git+https://github.com/glfmn/rust-ansi-term?branch=escape_sequence)",
  "criterion 0.2.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "git2 0.9.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "nom 3.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
