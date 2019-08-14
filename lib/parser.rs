@@ -4,6 +4,8 @@ use crate::ast::{Expression, Name, Style, Tree};
 use nom::{digit, IResult};
 use std::str::{self, Utf8Error};
 
+pub type ParseError = nom::IError;
+
 named! {
     backslash<&[u8], Name>,
     do_parse!(tag!("\\") >> (Name::Backslash))
@@ -393,6 +395,14 @@ pub fn expression(input: &[u8]) -> IResult<&[u8], Expression> {
     )
 }
 
+/// Parse a format
+pub fn parse<I>(input: I) -> Result<Tree, ParseError>
+where
+    I: AsRef<[u8]>,
+{
+    expression_tree(input.as_ref()).to_full_result()
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -581,7 +591,7 @@ mod test {
         let expect = str::from_utf8(test).expect("Invalid utf-8");
         let parse = match expression_tree(test) {
             IResult::Done(_, exp) => exp,
-            fail @ _ => panic!("Failed to parse with result {:?}", fail),
+            fail => panic!("Failed to parse with result {:?}", fail),
         };
         assert!(
             format!("{}", parse) == expect,

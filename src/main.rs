@@ -79,193 +79,100 @@
 //! dynamically update your shell with the information you want.  `glit` is made for precisely
 //! this purpose: you can provide a format, and glitter will interpret it, inserting the information
 //! in the format you want.
+extern crate structopt;
 
-#[macro_use]
-extern crate clap;
-extern crate git2;
-extern crate glitter_lang;
-
-use clap::ArgMatches;
 use git2::Repository;
-use glitter_lang::git;
-use glitter_lang::interpreter;
-use glitter_lang::parser;
+use std::fmt::{self, Display};
+use std::path::PathBuf;
+use structopt::StructOpt;
 
-const DESC: &'static str = "Glitter is a git repository status pretty-printing utility, useful for
-making custom prompts which incorporate information about the current
-git repository, such as the branch name, number of unstaged changes,
-and more.";
+use glitter_lang::{git, glitter};
 
-/// Program operation mode, retreived from Args
-#[derive(Debug, PartialEq, Eq)]
-enum Mode<'a> {
-    /// Tell if we are inside a git repository or not at the desired path
-    IsRepo(&'a str),
-    /// Parse pretty-printing format and insert git stats
-    Glitter {
-        /// Path of the git repository to check
-        path: &'a str,
-        /// Format string to parse
-        format: &'a str,
-        else_format: Option<&'a str>,
-    },
-    Verify {
-        /// Format string to parse
-        format: &'a str,
-    },
+#[derive(StructOpt, Debug)]
+#[structopt(name = "glit")]
+/// Glitter is a git repository status pretty-printing utility intended
+/// for making custom shell prompts which incorporate information about
+/// the current git repository, such as the branch name, number of
+/// unstaged changes, and more.
+struct Opt {
+    /// Format used in git repositories
+    git_format: String,
+
+    /// Format used outside git repositories
+    #[structopt(short = "e", long = "else-format")]
+    else_format: Option<String>,
+
+    /// Ignore syntax errors
+    #[structopt(long = "silent")]
+    silent_mode: bool,
+
+    /// Path to the git repository represented by the format
+    #[structopt(long, short, parse(from_os_str), default_value = ".")]
+    path: PathBuf,
 }
 
-impl<'a> Mode<'a> {
-    fn from_matches(matches: &'a ArgMatches) -> Self {
-        if let Some(matches) = matches.subcommand_matches("isrepo") {
-            return Mode::IsRepo(matches.value_of("path").unwrap_or("."));
-        };
-        if let Some(matches) = matches.subcommand_matches("verify") {
-            Mode::Verify {
-                format: matches.value_of("FORMAT").unwrap(),
-            }
-        } else {
-            Mode::Glitter {
-                path: matches.value_of("path").unwrap_or("."),
-                format: matches.value_of("FORMAT").unwrap(),
-                else_format: matches.value_of("else"),
-            }
+#[derive(Debug)]
+enum Error {
+    Git(git2::Error),
+    MissingFormat(PathBuf),
+    Glitter(glitter_lang::Error),
+}
+
+impl From<git2::Error> for Error {
+    fn from(e: git2::Error) -> Self {
+        Error::Git(e)
+    }
+}
+
+impl From<glitter_lang::Error> for Error {
+    fn from(e: glitter_lang::Error) -> Self {
+        Error::Glitter(e)
+    }
+}
+
+impl Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use Error::*;
+        match self {
+            Git(e) => write!(f, "Git error: {}", e),
+            MissingFormat(p) => write!(
+                f,
+                "No git repository in `{}` and no alternate format provided",
+                p.to_string_lossy()
+            ),
+            Glitter(e) => write!(f, "Error with format: {:?}", e),
         }
     }
 }
 
-/// Program exit conditions, allows for smoother cleanup and operation of the main program
-#[derive(Debug, PartialEq, Eq)]
-enum Exit {
-    Failure(i32),
-    Success,
-}
+fn run() -> Result<(), Error> {
+    let opt = Opt::from_args();
 
-/// Error types for program operation
-#[derive(Debug, PartialEq, Eq)]
-enum ProgramErr<'a> {
-    BadPath(Box<&'a str>),
-    BadFormat(Box<&'a str>),
-    BadParse(Box<&'a str>, String),
+    // Get a format and stats from the git repository or exit early with an error
+    let (stats, format) = Repository::discover(opt.path.clone())
+        .map(|mut repo| (git::Stats::new(&mut repo), opt.git_format.clone()))
+        // if no repository is found, use the alt format if it exists
+        .or_else(|_| {
+            if let Some(format) = opt.else_format.clone() {
+                Ok((git::Stats::default(), format))
+            } else {
+                Err(Error::MissingFormat(opt.path.clone()))
+            }
+        })?;
+
+    println!("{}", glitter(stats, format)?);
+
+    Ok(())
 }
 
 fn main() {
-    let exit = {
-        // Read and parse command-line arguments
-        let matches = clap_app!(glit =>
-            (version: crate_version!())
-            (author: crate_authors!())
-            (about: crate_description!())
-            (after_help: DESC)
-            (@arg FORMAT: +required "pretty-printing format specification")
-            (@arg path: -p --path +takes_value "path to repository [default \".\"]")
-            (@arg else: -e --else +takes_value "format to use outside of a repository")
-            (@setting ArgsNegateSubcommands)
-            (@setting SubcommandsNegateReqs)
-            (@subcommand isrepo =>
-                (about: "Determine if given path is a git repository")
-                (@arg path: -p --path +takes_value "path to test [default \".\"]")
-            )
-            (@subcommand verify =>
-                (about: "Determine if FORMAT parses correctly")
-                (@arg FORMAT: +required "pretty-printing format specification")
-            )
-        )
-        .get_matches();
-
-        use ProgramErr::{BadFormat, BadParse, BadPath};
-
-        // Carry out primary program operation
-        let error: Result<(), ProgramErr> = match Mode::from_matches(&matches) {
-            // Determine whether the given path is a git repository
-            Mode::IsRepo(path) => match Repository::discover(path) {
-                Ok(_) => Ok(()),
-                Err(_) => Err(BadPath(Box::new(path))),
-            },
-            // Parse pretty format and insert git status
-            Mode::Glitter {
-                path,
-                format,
-                else_format,
-            } => match Repository::discover(path) {
-                Ok(mut repo) => {
-                    let parse = parser::expression_tree(format.as_bytes()).to_result();
-                    match parse {
-                        Err(_) => Err(BadFormat(Box::new(format))),
-                        Ok(parsed) => {
-                            let stats = git::Stats::new(&mut repo);
-                            let interpreter = interpreter::Interpreter::new(stats.unwrap());
-                            match interpreter.evaluate(&parsed) {
-                                Ok(result) => {
-                                    println!("{}", result);
-                                    Ok(())
-                                }
-                                Err(_) => Err(BadFormat(Box::new(format))),
-                            }
-                        }
-                    }
-                }
-                Err(_) => match else_format {
-                    Some(fmt) => match parser::expression_tree(fmt.as_bytes()).to_result() {
-                        Err(_) => Err(BadFormat(Box::new(format))),
-                        Ok(parsed) => {
-                            let int = interpreter::Interpreter::new(Default::default());
-                            match int.evaluate(&parsed) {
-                                Ok(result) => {
-                                    println!("{}", result);
-                                    Ok(())
-                                }
-                                Err(_) => Err(BadFormat(Box::new(format))),
-                            }
-                        }
-                    },
-                    None => Err(BadPath(Box::new(path))),
-                },
-            },
-            Mode::Verify { format } => {
-                let parse = parser::expression_tree(format.as_bytes());
-                if parse.is_incomplete() {
-                    Err(BadFormat(Box::new(format)))
-                } else {
-                    match parse.to_result() {
-                        Err(_) => Err(BadFormat(Box::new(format))),
-                        Ok(parsed) => {
-                            if format!("{}", parsed) != format {
-                                Err(BadParse(Box::new(format), format!("{}", parsed)))
-                            } else {
-                                Ok(())
-                            }
-                        }
-                    }
-                }
-            }
-        };
-
-        // Handle errors and instruct program what exit code to use
-        match error {
-            Ok(()) => Exit::Success,
-            Err(BadPath(path)) => {
-                eprintln!("\"{}\" is not a git repository", path);
-                Exit::Failure(1)
-            }
-            Err(BadFormat(format)) => {
-                eprintln!("unable to parse format specifier \"{}\"", format);
-                Exit::Failure(1)
-            }
-            Err(BadParse(format, parsed)) => {
-                eprintln!(
-                    "parsed \"{}\" does not match provided \"{}\"",
-                    parsed, format
-                );
-                Exit::Failure(1)
-            }
+    match run() {
+        Ok(()) => {
+            std::process::exit(0);
         }
-    };
-
-    // Exit with desiered exit code, done outside of the scope of the main program so most values
-    // have a chance to clean up and exit.
-    match exit {
-        Exit::Failure(code) => std::process::exit(code),
-        _ => (),
+        Err(e) => {
+            eprintln!("{}", e);
+            std::process::exit(1);
+        }
     };
 }
