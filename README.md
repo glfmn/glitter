@@ -58,30 +58,23 @@ Too add a glitter format to your shell prompt if you are in a bash shell, add th
 #   $ export PS1_FMT="#r;*('TODO')"
 
 # Format to use inside of git repositories or their sub-folders
-export PS1_FMT="\<#m;*(\b)#m(\B(#~('..')))\(#g(\+)#r(\-))>\[#g;*(\M\A\R\D)#r;*(\m\a\u\d)]\{#m;*;_(\h('@'))}':'#y;*('\w')'\n\$ '"
+export PS1_GIT_FMT="\<#m;*(\b)#m(\B(#~('..')))\(#g(\+)#r(\-))>\[#g;*(\M\A\R\D)#r;*(\m\a\u\d)]\{#m;*;_(\h('@'))}':'#y;*('\w')'\n\$ '"
 
 # Format to use outside of git repositories
-export PS1_ELSE_FMT="#g(#*('\u')'@\h')':'#b;*('\w')'\$ '"
+export PS1_FMT="#g(#*('\u')'@\h')':'#b;*('\w')'\$ '"
 
 # Prompt command which is used to set the prompt, includes some extra useful
 # functionality such as showing the last exit code
 __set_prompt() {
+    # Capture last command exit flag
     local EXIT="$?"
-    # Capture last command exit flag first
 
-    # Clear out prompt
     PS1=""
-
     # If the last command didn't exit 0, display the exit code
-    [ "$EXIT" -ne "0" ] && PS1+="$EXIT "
-
-    # identify debian chroot, if one exists
-    if [ -z "${debian_chroot:-}" ] && [ -r /etc/debian_chroot ]; then
-      PS1+="${debian_chroot:+($(cat /etc/debian_chroot))}"
-    fi
+    [ "$EXIT" -ne "0" ] && PS1="$EXIT "
 
     # Render the appropriate format depending on whether we are in a git repo
-    PS1+="$(glit "$PS1_FMT" -e "$PS1_ELSE_FMT")"
+    PS1+="$(glit "$PS1_GIT_FMT" -e "$PS1_FMT")"
 }
 
 export PROMPT_COMMAND=__set_prompt
@@ -170,16 +163,16 @@ Expressions generally only render any output if their corresponding values aren'
 
 Glitter will surround grouped expressions with parentheses or brackets, and will print nothing if the group is empty.
 
-| Macro       | Result                           |
-|:------------|:---------------------------------|
-| `\[]`       | empty                            |
-| `\()`       | empty                            |
-| `\<>`       | empty                            |
-| `\{}`       | empty                            |
-| `\{\b}`     | `{master}`                       |
-| `\<\+\->`   | `<+1-1>`                         |
-| `\[\M\A\R]` | `[M1A3]` where `\R` is empty     |
-| `\[\r\(\a)]`| empty, when `\r`, `\a` are empty |
+| Macro       | Result                       |
+|:------------|:-----------------------------|
+| `\[]`       | empty                        |
+| `\()`       | empty                        |
+| `\<>`       | empty                        |
+| `\{}`       | empty                        |
+| `\{\b}`     | `{master}`                   |
+| `\<\+\->`   | `<+1-1>`                     |
+| `\[\M\A\R]` | `[M1A3]` where `\R` is 0     |
+| `\[\r\(\a)]`| empty, when `\r`, `\a` are 0 |
 
 ```
 $ glit "\b\<\M>"
