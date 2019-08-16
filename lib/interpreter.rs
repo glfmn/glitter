@@ -2,9 +2,8 @@
 
 use crate::ast::{self, Expression, Name, Style, Tree};
 use crate::git::Stats;
-use ansi_term;
-use ansi_term::{ANSIString, ANSIStrings, Colour};
-use std::fmt;
+use ansi_term::{self, Colour};
+use std::{fmt, io};
 
 /// Trait which determines what is empty in the eyes of the Interpreter
 ///
@@ -44,9 +43,16 @@ impl<T> Empty for Vec<T> {
 }
 
 /// Various types of Interpreter errors
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug)]
 pub enum InterpreterErr {
     UnexpectedArgs { exp: Expression },
+    WriteError(io::Error),
+}
+
+impl From<io::Error> for InterpreterErr {
+    fn from(e: io::Error) -> Self {
+        InterpreterErr::WriteError(e)
+    }
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -59,10 +65,6 @@ impl<'a> StyledString {
     fn new(style: ansi_term::Style, result: String) -> StyledString {
         StyledString { style, result }
     }
-
-    fn evaluate(&'a self) -> ANSIString<'a> {
-        self.style.paint(self.result.as_str())
-    }
 }
 
 type State = Result<Vec<StyledString>, InterpreterErr>;
@@ -71,22 +73,58 @@ type State = Result<Vec<StyledString>, InterpreterErr>;
 #[derive(Debug, PartialEq, Eq, Default, Clone)]
 pub struct Interpreter {
     stats: Stats,
+    allow_color: bool,
+    bash_prompt: bool,
 }
 
 impl Interpreter {
     /// Create a new Interpreter with the given stats
-    pub fn new(stats: Stats) -> Interpreter {
-        Interpreter { stats: stats }
+    pub fn new(stats: Stats, allow_color: bool, bash_prompt: bool) -> Interpreter {
+        Interpreter {
+            stats,
+            bash_prompt,
+            allow_color,
+        }
     }
 
     /// Evaluate an expression tree and return the resulting formatted `String`
-    pub fn evaluate(&self, exps: &Tree) -> Result<String, InterpreterErr> {
-        let strings = self.interpret_tree(&exps, ansi_term::Style::new())?;
-        let strings = strings
-            .iter()
-            .map(|s| s.evaluate())
-            .collect::<Vec<ANSIString>>();
-        Ok(format!("{}", ANSIStrings(&strings)))
+    pub fn evaluate<W: io::Write>(&self, exps: &Tree, w: &mut W) -> Result<(), InterpreterErr> {
+        let reset: &str = "\x1B[0m";
+        use ansi_term::Difference;
+        use Difference::*;
+
+        let mut prev_style = ansi_term::Style::default();
+        for StyledString { style, result } in self.interpret_tree(&exps, ansi_term::Style::new())? {
+            if self.allow_color {
+                if self.bash_prompt {
+                    match Difference::between(&prev_style, &style) {
+                        ExtraStyles(style) => write!(w, "\u{01}{}\u{02}", style.prefix())?,
+                        Reset => write!(w, "\u{01}{}{}\u{02}", reset, style.prefix())?,
+                        NoDifference => { /* Do nothing! */ }
+                    }
+                } else {
+                    match Difference::between(&prev_style, &style) {
+                        ExtraStyles(style) => write!(w, "{}", style.prefix())?,
+                        Reset => write!(w, "{}{}", reset, style.prefix())?,
+                        NoDifference => { /* Do nothing! */ }
+                    }
+                }
+
+                prev_style = style;
+            }
+
+            w.write_all(result.as_bytes())?;
+        }
+
+        if self.allow_color {
+            if self.bash_prompt {
+                write!(w, "\u{01}{}\u{02}", reset)?;
+            } else {
+                w.write_all(reset.as_bytes())?;
+            }
+        }
+
+        Ok(())
     }
 
     fn interpret_tree(&self, exps: &Tree, context: ansi_term::Style) -> State {
@@ -198,7 +236,7 @@ impl Interpreter {
 
     fn interpret_format(
         &self,
-        style: &Vec<Style>,
+        style: &[Style],
         sub: &Tree,
         mut context: ansi_term::Style,
     ) -> State {
@@ -257,14 +295,15 @@ mod test {
 
             let stats: Stats = Default::default();
 
-            let interpreter = Interpreter::new(stats);
+            let interpreter = Interpreter::new(stats, false, false);
 
             let exp = Expression::Named { name, sub: Tree::new() };
 
-            match interpreter.evaluate(&Tree(vec![exp.clone()])) {
-                Ok(res) => {
-                    println!("interpreted {} as {}", exp, res);
-                    assert!(res.is_empty())
+            let mut output = Vec::new();
+            match interpreter.evaluate(&Tree(vec![exp.clone()]), &mut output) {
+                Ok(()) => {
+                    println!("interpreted {} as {} ({:?})", exp, String::from_utf8_lossy(&output), output);
+                    assert!(output.is_empty())
                 },
                 Err(e) => {
                     println!("{:?}", e);

@@ -113,6 +113,8 @@ extern crate git2;
 #[macro_use]
 extern crate nom;
 
+use std::io;
+
 #[cfg_attr(test, macro_use)]
 #[cfg(test)]
 extern crate proptest;
@@ -142,8 +144,14 @@ impl From<parser::ParseError> for Error {
     }
 }
 
-pub fn glitter(stats: Stats, format: String) -> Result<String, Error> {
+pub fn glitter<W: io::Write>(
+    stats: Stats,
+    format: String,
+    allow_color: bool,
+    bash_prompt: bool,
+    w: &mut W,
+) -> Result<(), Error> {
     let tree = parser::parse(format)?;
-    let evaled = interpreter::Interpreter::new(stats).evaluate(&tree)?;
-    Ok(evaled)
+    interpreter::Interpreter::new(stats, allow_color, bash_prompt).evaluate(&tree, w)?;
+    Ok(())
 }
