@@ -55,10 +55,11 @@ fn empty_stats(c: &mut Criterion) {
             },
         ]),
     }]);
-    let interpreter = Interpreter::new(empty);
+    let interpreter = Interpreter::new(empty, true, true);
 
     c.bench_function("default stats \"\\[\\M\\A\\R\\D\\]\"", move |b| {
-        b.iter(|| interpreter.evaluate(&expression))
+        let mut out = Vec::new();
+        b.iter(|| interpreter.evaluate(&expression, &mut out))
     });
 }
 
@@ -67,15 +68,18 @@ fn nested_named(c: &mut Criterion) {
     use Name::*;
 
     fn depth_1(b: &mut Bencher, s: &Stats) {
-        let interpreter = Interpreter::new(s.clone());
+        let interpreter = Interpreter::new(s.clone(), true, true);
         let e = Tree(vec![Named {
             name: Modified,
             sub: Tree::new(),
         }]);
-        b.iter(|| interpreter.evaluate(&e));
+        b.iter(|| {
+            let mut out = Vec::new();
+            interpreter.evaluate(&e, &mut out);
+        });
     }
     fn depth_2(b: &mut Bencher, s: &Stats) {
-        let interpreter = Interpreter::new(s.clone());
+        let interpreter = Interpreter::new(s.clone(), true, true);
         let e = Tree(vec![Named {
             name: Modified,
             sub: Tree(vec![Named {
@@ -83,10 +87,13 @@ fn nested_named(c: &mut Criterion) {
                 sub: Tree::new(),
             }]),
         }]);
-        b.iter(|| interpreter.evaluate(&e));
+        b.iter(|| {
+            let mut out = Vec::new();
+            interpreter.evaluate(&e, &mut out);
+        });
     }
     fn depth_3(b: &mut Bencher, s: &Stats) {
-        let interpreter = Interpreter::new(s.clone());
+        let interpreter = Interpreter::new(s.clone(), true, true);
         let e = Tree(vec![Named {
             name: Modified,
             sub: Tree(vec![Named {
@@ -97,10 +104,13 @@ fn nested_named(c: &mut Criterion) {
                 }]),
             }]),
         }]);
-        b.iter(|| interpreter.evaluate(&e));
+        b.iter(|| {
+            let mut out = Vec::new();
+            interpreter.evaluate(&e, &mut out);
+        });
     }
     fn depth_4(b: &mut Bencher, s: &Stats) {
-        let interpreter = Interpreter::new(s.clone());
+        let interpreter = Interpreter::new(s.clone(), true, true);
         let e = Tree(vec![Named {
             name: Modified,
             sub: Tree(vec![Named {
@@ -114,7 +124,10 @@ fn nested_named(c: &mut Criterion) {
                 }]),
             }]),
         }]);
-        b.iter(|| interpreter.evaluate(&e));
+        b.iter(|| {
+            let mut out = Vec::new();
+            interpreter.evaluate(&e, &mut out);
+        });
     }
 
     c.bench_functions(
@@ -136,7 +149,7 @@ fn tree_length(c: &mut Criterion) {
     macro_rules! length_n {
         ($n:expr) => {
             |b: &mut Bencher, s: &Stats| {
-                let tree = Tree(
+                let e = Tree(
                     std::iter::repeat(Named {
                         name: Deleted,
                         sub: Tree::new(),
@@ -144,8 +157,12 @@ fn tree_length(c: &mut Criterion) {
                     .take($n)
                     .collect(),
                 );
-                let i = Interpreter::new(s.clone());
-                b.iter(|| i.evaluate(&tree))
+
+                let i = Interpreter::new(s.clone(), true, true);
+                b.iter(|| {
+                    let mut out = Vec::new();
+                    i.evaluate(&e, &mut out);
+                });
             }
         };
     }
@@ -174,8 +191,9 @@ fn style_length(c: &mut Criterion) {
                     style: std::iter::repeat(Bold).take($n).collect(),
                     sub: Tree(Vec::new()),
                 }]);
-                let i = Interpreter::new(s.clone());
-                b.iter(|| i.evaluate(&styles))
+                let i = Interpreter::new(s.clone(), true, true);
+                let mut out = Vec::new();
+                b.iter(|| i.evaluate(&styles, &mut out))
             }
         };
     }
