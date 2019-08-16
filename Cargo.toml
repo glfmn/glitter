@@ -6,6 +6,7 @@ description = "A utility for pretty-printing git stats"
 license = "MPL-2.0"
 readme = "README.md"
 repository = "https://github.com/glfmn/glitter"
+homepage = "https://github.com/glfmn/glitter"
 keywords = ["DSL", "git", "gist", "status", "pretty-printing"]
 exclude = [
     "img/*.gif"
@@ -22,6 +23,7 @@ structopt = "0.2.18"
 git2 = "0.9"
 ansi_term = "0.11"
 nom = "^3.2"
+human-panic = "1.0.1"
 
 [patch.crates-io]
 ansi_term = { git = "https://github.com/glfmn/rust-ansi-term", branch = "escape_sequence" }
