@@ -29,21 +29,21 @@ pub enum Name {
 impl fmt::Display for Name {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let literal = match self {
-            &Name::Stashed => "h",
-            &Name::Branch => "b",
-            &Name::Remote => "B",
-            &Name::Ahead => "+",
-            &Name::Behind => "-",
-            &Name::Conflict => "u",
-            &Name::Added => "A",
-            &Name::Untracked => "a",
-            &Name::Modified => "M",
-            &Name::Unstaged => "m",
-            &Name::Deleted => "d",
-            &Name::DeletedStaged => "D",
-            &Name::Renamed => "R",
-            &Name::Backslash => "\\",
-            &Name::Quote => "\'",
+            Name::Stashed => "h",
+            Name::Branch => "b",
+            Name::Remote => "B",
+            Name::Ahead => "+",
+            Name::Behind => "-",
+            Name::Conflict => "u",
+            Name::Added => "A",
+            Name::Untracked => "a",
+            Name::Modified => "M",
+            Name::Unstaged => "m",
+            Name::Deleted => "d",
+            Name::DeletedStaged => "D",
+            Name::Renamed => "R",
+            Name::Backslash => "\\",
+            Name::Quote => "\'",
         };
         write!(f, "{}", literal)
     }
@@ -129,27 +129,27 @@ impl fmt::Display for Style {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let literal = match self {
             &Style::Reset => "~".to_string(),
-            &Style::Bold => "*".to_string(),
-            &Style::Underline => "_".to_string(),
-            &Style::Italic => "i".to_string(),
-            &Style::FgRed => "r".to_string(),
-            &Style::BgRed => "R".to_string(),
-            &Style::FgGreen => "g".to_string(),
-            &Style::BgGreen => "G".to_string(),
-            &Style::FgYellow => "y".to_string(),
-            &Style::BgYellow => "Y".to_string(),
-            &Style::FgBlue => "b".to_string(),
-            &Style::BgBlue => "B".to_string(),
-            &Style::FgMagenta => "m".to_string(),
-            &Style::BgMagenta => "M".to_string(),
-            &Style::FgCyan => "c".to_string(),
-            &Style::BgCyan => "C".to_string(),
-            &Style::FgWhite => "w".to_string(),
-            &Style::BgWhite => "W".to_string(),
+            Style::Bold => "*".to_string(),
+            Style::Underline => "_".to_string(),
+            Style::Italic => "i".to_string(),
+            Style::FgRed => "r".to_string(),
+            Style::BgRed => "R".to_string(),
+            Style::FgGreen => "g".to_string(),
+            Style::BgGreen => "G".to_string(),
+            Style::FgYellow => "y".to_string(),
+            Style::BgYellow => "Y".to_string(),
+            Style::FgBlue => "b".to_string(),
+            Style::BgBlue => "B".to_string(),
+            Style::FgMagenta => "m".to_string(),
+            Style::BgMagenta => "M".to_string(),
+            Style::FgCyan => "c".to_string(),
+            Style::BgCyan => "C".to_string(),
+            Style::FgWhite => "w".to_string(),
+            Style::BgWhite => "W".to_string(),
             &Style::FgRGB(r, g, b) => format!("[{},{},{}]", r, g, b),
             &Style::BgRGB(r, g, b) => format!("{{{},{},{}}}", r, g, b),
-            &Style::FgBlack => "k".to_string(),
-            &Style::BgBlack => "K".to_string(),
+            Style::FgBlack => "k".to_string(),
+            Style::BgBlack => "K".to_string(),
             &Style::Number(n) => n.to_string(),
         };
         write!(f, "{}", literal)
@@ -246,7 +246,7 @@ pub enum Expression {
 impl fmt::Display for Expression {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            &Expression::Named { ref name, ref sub } => {
+            Expression::Named { ref name, ref sub } => {
                 write!(f, "\\{}", name)?;
                 if sub.0.is_empty() {
                     Ok(())
@@ -255,12 +255,12 @@ impl fmt::Display for Expression {
                     Ok(())
                 }
             }
-            &Expression::Group {
+            Expression::Group {
                 ref l,
                 ref r,
                 ref sub,
             } => write!(f, "\\{}{}{}", l, sub, r),
-            &Expression::Format { ref style, ref sub } => {
+            Expression::Format { ref style, ref sub } => {
                 write!(f, "#")?;
                 if let Some((first, ss)) = style.split_first() {
                     write!(f, "{}", first)?;
@@ -270,7 +270,7 @@ impl fmt::Display for Expression {
                 }
                 write!(f, "({})", sub)
             }
-            &Expression::Literal(ref string) => write!(f, "'{}'", string),
+            Expression::Literal(ref string) => write!(f, "'{}'", string),
         }
     }
 }
@@ -335,6 +335,12 @@ pub struct Tree(pub Vec<Expression>);
 impl Tree {
     /// Create an empty tree
     pub fn new() -> Tree {
+        Tree(Vec::new())
+    }
+}
+
+impl Default for Tree {
+    fn default() -> Self {
         Tree(Vec::new())
     }
 }

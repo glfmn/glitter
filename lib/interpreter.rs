@@ -139,8 +139,8 @@ impl Interpreter {
         use ast::Expression::{Format, Group, Literal, Named};
 
         let val = match exp {
-            &Named { ref name, ref sub } => self.interpret_named(name, sub, ctx)?,
-            &Group {
+            Named { ref name, ref sub } => self.interpret_named(*name, sub, ctx)?,
+            Group {
                 ref l,
                 ref r,
                 ref sub,
@@ -156,8 +156,8 @@ impl Interpreter {
                     res
                 }
             }
-            &Literal(ref literal) => vec![StyledString::new(ctx, literal.to_string())],
-            &Format { ref style, ref sub } => self.interpret_format(style, sub, ctx)?,
+            Literal(ref literal) => vec![StyledString::new(ctx, literal.to_string())],
+            Format { ref style, ref sub } => self.interpret_format(style, sub, ctx)?,
         };
 
         Ok(val)
@@ -213,24 +213,24 @@ impl Interpreter {
     }
 
     #[inline(always)]
-    fn interpret_named(&self, name: &Name, sub: &Tree, ctx: ansi_term::Style) -> State {
+    fn interpret_named(&self, name: Name, sub: &Tree, ctx: ansi_term::Style) -> State {
         use ast::Name::*;
         match name {
-            &Branch => self.optional_prefix(sub, self.stats.branch.clone(), "", ctx),
-            &Remote => self.optional_prefix(sub, self.stats.remote.clone(), "", ctx),
-            &Ahead => self.optional_prefix(sub, self.stats.ahead, "+", ctx),
-            &Behind => self.optional_prefix(sub, self.stats.behind, "-", ctx),
-            &Conflict => self.optional_prefix(sub, self.stats.conflicts, "U", ctx),
-            &Added => self.optional_prefix(sub, self.stats.added_staged, "A", ctx),
-            &Untracked => self.optional_prefix(sub, self.stats.untracked, "?", ctx),
-            &Modified => self.optional_prefix(sub, self.stats.modified_staged, "M", ctx),
-            &Unstaged => self.optional_prefix(sub, self.stats.modified, "M", ctx),
-            &Deleted => self.optional_prefix(sub, self.stats.deleted, "D", ctx),
-            &DeletedStaged => self.optional_prefix(sub, self.stats.deleted_staged, "D", ctx),
-            &Renamed => self.optional_prefix(sub, self.stats.renamed, "R", ctx),
-            &Stashed => self.optional_prefix(sub, self.stats.stashes, "H", ctx),
-            &Backslash => Ok(vec![self.interpret_literal(sub, "\\", ctx)?]),
-            &Quote => Ok(vec![self.interpret_literal(sub, "'", ctx)?]),
+            Branch => self.optional_prefix(sub, self.stats.branch.clone(), "", ctx),
+            Remote => self.optional_prefix(sub, self.stats.remote.clone(), "", ctx),
+            Ahead => self.optional_prefix(sub, self.stats.ahead, "+", ctx),
+            Behind => self.optional_prefix(sub, self.stats.behind, "-", ctx),
+            Conflict => self.optional_prefix(sub, self.stats.conflicts, "U", ctx),
+            Added => self.optional_prefix(sub, self.stats.added_staged, "A", ctx),
+            Untracked => self.optional_prefix(sub, self.stats.untracked, "?", ctx),
+            Modified => self.optional_prefix(sub, self.stats.modified_staged, "M", ctx),
+            Unstaged => self.optional_prefix(sub, self.stats.modified, "M", ctx),
+            Deleted => self.optional_prefix(sub, self.stats.deleted, "D", ctx),
+            DeletedStaged => self.optional_prefix(sub, self.stats.deleted_staged, "D", ctx),
+            Renamed => self.optional_prefix(sub, self.stats.renamed, "R", ctx),
+            Stashed => self.optional_prefix(sub, self.stats.stashes, "H", ctx),
+            Backslash => Ok(vec![self.interpret_literal(sub, "\\", ctx)?]),
+            Quote => Ok(vec![self.interpret_literal(sub, "'", ctx)?]),
         }
     }
 
@@ -244,28 +244,28 @@ impl Interpreter {
 
         for s in style {
             context = match s {
-                &Reset => ansi_term::Style::new(),
-                &Bold => context.bold(),
-                &Underline => context.underline(),
-                &Italic => context.italic(),
-                &FgRed => context.fg(Colour::Red),
-                &BgRed => context.on(Colour::Red),
-                &FgGreen => context.fg(Colour::Green),
-                &BgGreen => context.on(Colour::Green),
-                &FgYellow => context.fg(Colour::Yellow),
-                &BgYellow => context.on(Colour::Yellow),
-                &FgBlue => context.fg(Colour::Blue),
-                &BgBlue => context.on(Colour::Blue),
-                &FgMagenta => context.fg(Colour::Purple),
-                &BgMagenta => context.on(Colour::Purple),
-                &FgCyan => context.fg(Colour::Cyan),
-                &BgCyan => context.on(Colour::Cyan),
-                &FgWhite => context.fg(Colour::White),
-                &BgWhite => context.on(Colour::White),
+                Reset => ansi_term::Style::new(),
+                Bold => context.bold(),
+                Underline => context.underline(),
+                Italic => context.italic(),
+                FgRed => context.fg(Colour::Red),
+                BgRed => context.on(Colour::Red),
+                FgGreen => context.fg(Colour::Green),
+                BgGreen => context.on(Colour::Green),
+                FgYellow => context.fg(Colour::Yellow),
+                BgYellow => context.on(Colour::Yellow),
+                FgBlue => context.fg(Colour::Blue),
+                BgBlue => context.on(Colour::Blue),
+                FgMagenta => context.fg(Colour::Purple),
+                BgMagenta => context.on(Colour::Purple),
+                FgCyan => context.fg(Colour::Cyan),
+                BgCyan => context.on(Colour::Cyan),
+                FgWhite => context.fg(Colour::White),
+                BgWhite => context.on(Colour::White),
                 &FgRGB(r, g, b) => context.fg(Colour::RGB(r, g, b)),
                 &BgRGB(r, g, b) => context.on(Colour::RGB(r, g, b)),
-                &FgBlack => context.fg(Colour::Black),
-                &BgBlack => context.on(Colour::Black),
+                FgBlack => context.fg(Colour::Black),
+                BgBlack => context.on(Colour::Black),
                 &Number(n) => context.fg(Colour::Fixed(n)),
             };
         }

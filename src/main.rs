@@ -176,7 +176,7 @@ fn run() -> Result<(), Error> {
         &mut std::io::stdout(),
     )?;
 
-    print!("\n");
+    println!();
 
     Ok(())
 }

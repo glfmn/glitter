@@ -312,9 +312,9 @@ fn convert_vec_utf8(v: Vec<u8>) -> Result<String, Utf8Error> {
     str::from_utf8(slice).map(|s| s.to_owned())
 }
 
-/// Parse a string from slice
-///
-/// https://github.com/Rydgel/monkey-rust/blob/master/lib/lexer/mod.rs
+// Parse a string from slice
+//
+// https://github.com/Rydgel/monkey-rust/blob/master/lib/lexer/mod.rs
 named! {
     string<String>,
     delimited!(
