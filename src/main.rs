@@ -80,6 +80,8 @@
 //! this purpose: you can provide a format, and glitter will interpret it, inserting the information
 //! in the format you want.
 extern crate structopt;
+#[macro_use]
+extern crate human_panic;
 
 use git2::Repository;
 use std::fmt::{self, Display};
@@ -166,6 +168,8 @@ fn run() -> Result<(), Error> {
 }
 
 fn main() {
+    setup_panic!();
+
     match run() {
         Ok(()) => {
             std::process::exit(0);
