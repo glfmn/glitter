@@ -108,18 +108,17 @@
 //! | `#42(`...`)`   | a forest greenish color        |
 //! | `#_;*(`...`)`  | underline bold text            |
 
-extern crate ansi_term;
 extern crate git2;
 #[macro_use]
 extern crate nom;
-
-use std::io;
-
 #[cfg_attr(test, macro_use)]
 #[cfg(test)]
 extern crate proptest;
 
+use std::io;
+
 pub mod ast;
+mod color;
 pub mod git;
 pub mod interpreter;
 pub mod parser;

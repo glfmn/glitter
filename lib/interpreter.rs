@@ -1,46 +1,10 @@
 //! Interpreter which transforms expressions into the desired output
 
 use crate::ast::{self, Expression, Name, Style, Tree};
+use crate::color::*;
 use crate::git::Stats;
-use ansi_term::{self, Colour};
+
 use std::{fmt, io};
-
-/// Trait which determines what is empty in the eyes of the Interpreter
-///
-/// The interpreter simply ignores the macros which correspond to "empty" values.
-trait Empty {
-    fn is_empty(&self) -> bool;
-}
-
-impl Empty for u16 {
-    fn is_empty(&self) -> bool {
-        *self == 0
-    }
-}
-
-impl Empty for str {
-    fn is_empty(&self) -> bool {
-        self.is_empty()
-    }
-}
-
-impl Empty for String {
-    fn is_empty(&self) -> bool {
-        self.is_empty()
-    }
-}
-
-impl Empty for StyledString {
-    fn is_empty(&self) -> bool {
-        self.result.is_empty()
-    }
-}
-
-impl<T> Empty for Vec<T> {
-    fn is_empty(&self) -> bool {
-        self.is_empty()
-    }
-}
 
 /// Various types of Interpreter errors
 #[derive(Debug)]
@@ -52,18 +16,6 @@ pub enum InterpreterErr {
 impl From<io::Error> for InterpreterErr {
     fn from(e: io::Error) -> Self {
         InterpreterErr::WriteError(e)
-    }
-}
-
-#[derive(Debug, PartialEq, Clone)]
-struct StyledString {
-    style: ansi_term::Style,
-    result: String,
-}
-
-impl<'a> StyledString {
-    fn new(style: ansi_term::Style, result: String) -> StyledString {
-        StyledString { style, result }
     }
 }
 
@@ -82,40 +34,25 @@ impl Interpreter {
     pub fn new(stats: Stats, allow_color: bool, bash_prompt: bool) -> Interpreter {
         Interpreter {
             stats,
-            bash_prompt,
             allow_color,
+            bash_prompt,
         }
     }
 
     /// Evaluate an expression tree and return the resulting formatted `String`
     pub fn evaluate<W: io::Write>(&self, exps: &Tree, w: &mut W) -> Result<(), InterpreterErr> {
-        let reset: &str = "\x1B[0m";
-        use ansi_term::Difference;
-        use Difference::*;
-
-        let mut prev_style = ansi_term::Style::default();
-        for StyledString { style, result } in self.interpret_tree(&exps, ansi_term::Style::new())? {
+        let mut prev_style = StyleContext::default();
+        for chunk in self.interpret_tree(&exps, StyleContext::default())? {
+            let (style, result) = chunk.into();
             if self.allow_color {
-                if self.bash_prompt {
-                    match Difference::between(&prev_style, &style) {
-                        ExtraStyles(style) => write!(w, "\u{01}{}\u{02}", style.prefix())?,
-                        Reset => write!(w, "\u{01}{}{}\u{02}", reset, style.prefix())?,
-                        NoDifference => { /* Do nothing! */ }
-                    }
-                } else {
-                    match Difference::between(&prev_style, &style) {
-                        ExtraStyles(style) => write!(w, "{}", style.prefix())?,
-                        Reset => write!(w, "{}{}", reset, style.prefix())?,
-                        NoDifference => { /* Do nothing! */ }
-                    }
-                }
-
+                style.write_difference(w, &prev_style, self.bash_prompt)?;
                 prev_style = style;
             }
 
             w.write_all(result.as_bytes())?;
         }
 
+        let reset = "\x1B[0m";
         if self.allow_color {
             if self.bash_prompt {
                 write!(w, "\u{01}{}\u{02}", reset)?;
@@ -127,7 +64,7 @@ impl Interpreter {
         Ok(())
     }
 
-    fn interpret_tree(&self, exps: &Tree, context: ansi_term::Style) -> State {
+    fn interpret_tree(&self, exps: &Tree, context: StyleContext) -> State {
         let mut res = Vec::new();
         for e in exps.clone().0 {
             res.extend(self.interpret(&e, context)?);
@@ -135,7 +72,7 @@ impl Interpreter {
         Ok(res)
     }
 
-    fn interpret(&self, exp: &Expression, ctx: ansi_term::Style) -> State {
+    fn interpret(&self, exp: &Expression, ctx: StyleContext) -> State {
         use ast::Expression::{Format, Group, Literal, Named};
 
         let val = match exp {
@@ -169,23 +106,17 @@ impl Interpreter {
         sub: &Tree,
         val: V1,
         prefix: V2,
-        ctx: ansi_term::Style,
+        ctx: StyleContext,
     ) -> State {
         if val.is_empty() {
             return Ok(Vec::new());
         };
         match sub.0.len() {
-            0 => Ok(vec![StyledString {
-                style: ctx,
-                result: format!("{}{}", prefix, val),
-            }]),
+            0 => Ok(vec![StyledString::new(ctx, format!("{}{}", prefix, val))]),
             _ => {
                 let mut res = Vec::with_capacity(sub.0.len() + 1);
                 res.extend(self.interpret_tree(sub, ctx)?);
-                res.push(StyledString {
-                    style: ctx,
-                    result: val.to_string(),
-                });
+                res.push(StyledString::new(ctx, val.to_string()));
                 Ok(res)
             }
         }
@@ -196,13 +127,10 @@ impl Interpreter {
         &self,
         sub: &Tree,
         literal: &str,
-        context: ansi_term::Style,
+        context: StyleContext,
     ) -> Result<StyledString, InterpreterErr> {
         match sub.0.len() {
-            0 => Ok(StyledString {
-                style: context,
-                result: literal.to_string(),
-            }),
+            0 => Ok(StyledString::new(context, literal.to_string())),
             _ => Err(InterpreterErr::UnexpectedArgs {
                 exp: Expression::Named {
                     name: Name::Quote,
@@ -213,7 +141,7 @@ impl Interpreter {
     }
 
     #[inline(always)]
-    fn interpret_named(&self, name: Name, sub: &Tree, ctx: ansi_term::Style) -> State {
+    fn interpret_named(&self, name: Name, sub: &Tree, ctx: StyleContext) -> State {
         use ast::Name::*;
         match name {
             Branch => self.optional_prefix(sub, self.stats.branch.clone(), "", ctx),
@@ -234,44 +162,46 @@ impl Interpreter {
         }
     }
 
-    fn interpret_format(
-        &self,
-        style: &[Style],
-        sub: &Tree,
-        mut context: ansi_term::Style,
-    ) -> State {
-        use ast::Color::*;
-        use ast::Style::*;
-
-        for s in style {
-            context = match s {
-                Reset => ansi_term::Style::new(),
-                Bold => context.bold(),
-                Underline => context.underline(),
-                Italic => context.italic(),
-                Fg(Red) => context.fg(Colour::Red),
-                Bg(Red) => context.on(Colour::Red),
-                Fg(Green) => context.fg(Colour::Green),
-                Bg(Green) => context.on(Colour::Green),
-                Fg(Yellow) => context.fg(Colour::Yellow),
-                Bg(Yellow) => context.on(Colour::Yellow),
-                Fg(Blue) => context.fg(Colour::Blue),
-                Bg(Blue) => context.on(Colour::Blue),
-                Fg(Magenta) => context.fg(Colour::Purple),
-                Bg(Magenta) => context.on(Colour::Purple),
-                Fg(Cyan) => context.fg(Colour::Cyan),
-                Bg(Cyan) => context.on(Colour::Cyan),
-                Fg(White) => context.fg(Colour::White),
-                Bg(White) => context.on(Colour::White),
-                &Fg(RGB(r, g, b)) => context.fg(Colour::RGB(r, g, b)),
-                &Bg(RGB(r, g, b)) => context.on(Colour::RGB(r, g, b)),
-                Fg(Black) => context.fg(Colour::Black),
-                Bg(Black) => context.on(Colour::Black),
-                &Number(n) => context.fg(Colour::Fixed(n)),
-            };
-        }
-
+    fn interpret_format(&self, style: &[Style], sub: &Tree, mut context: StyleContext) -> State {
+        context.extend(style);
         self.interpret_tree(sub, context)
+    }
+}
+
+/// Trait which determines what is empty in the eyes of the Interpreter
+///
+/// The interpreter simply ignores the macros which correspond to "empty" values.
+trait Empty {
+    fn is_empty(&self) -> bool;
+}
+
+impl Empty for u16 {
+    fn is_empty(&self) -> bool {
+        *self == 0
+    }
+}
+
+impl Empty for str {
+    fn is_empty(&self) -> bool {
+        self.is_empty()
+    }
+}
+
+impl Empty for String {
+    fn is_empty(&self) -> bool {
+        self.is_empty()
+    }
+}
+
+impl Empty for StyledString {
+    fn is_empty(&self) -> bool {
+        self.is_empty()
+    }
+}
+
+impl<T> Empty for Vec<T> {
+    fn is_empty(&self) -> bool {
+        self.is_empty()
     }
 }
 

@@ -21,7 +21,6 @@ bench = true
 [dependencies]
 structopt = "0.2.18"
 git2 = "0.9"
-ansi_term = "0.11"
 nom = "^3.2"
 human-panic = "1.0.1"
 
