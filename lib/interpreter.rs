@@ -50,9 +50,18 @@ impl Interpreter {
 
     /// Evaluate an expression tree and return the resulting formatted `String`
     pub fn evaluate<W: io::Write>(&mut self, exps: &Tree, w: &mut W) -> Result<(), InterpreterErr> {
-        self.interpret_tree(w, &exps, StyleContext::default())?;
-
         if self.allow_color {
+            if self.bash_prompt {
+                self.command_queue
+                    .push(WriteCommand::WriteStr("\u{01}\x1B[0m\u{02}"));
+            } else {
+                self.command_queue.push(WriteCommand::WriteStr("\x1B[0m"));
+            }
+        }
+
+        let (_, wrote) = self.interpret_tree(w, &exps, StyleContext::default())?;
+
+        if wrote && self.allow_color {
             if self.bash_prompt {
                 write!(w, "\u{01}\x1B[0m\u{02}")?;
             } else {
@@ -270,6 +279,8 @@ mod test {
     use crate::git::Stats;
     use ast;
     use ast::{Expression, Name, Tree};
+    use proptest::arbitrary::any;
+    use proptest::collection::vec;
     use proptest::strategy::Strategy;
 
     proptest! {
@@ -296,7 +307,79 @@ mod test {
                 },
                 Err(e) => {
                     println!("{:?}", e);
-                    ()
+                    panic!("Error in proptest")
+                }
+            }
+        }
+
+        #[test]
+        fn empty_group_empty_result(
+            name in ast::arb_name()
+                .prop_filter("Backslash is never empty".to_owned(),
+                             |n| *n != Name::Backslash)
+                .prop_filter("Quote is never empty".to_owned(),
+                             |n| *n != Name::Quote)
+        ) {
+            let stats = Stats::default();
+            let interior = Expression::Named { name, sub: Tree::new(), };
+            let exp = Expression::Group {
+                l: "{".to_string(),
+                r: "}".to_string(),
+                sub: Tree(vec![interior]),
+            };
+
+            let mut interpreter = Interpreter::new(stats, false, false);
+
+            let mut output = Vec::with_capacity(32);
+            match interpreter.evaluate(&Tree(vec![exp.clone()]), &mut output) {
+                Ok(()) => {
+                    println!(
+                        "interpreted {} as \"{}\" ({:?})",
+                        exp,
+                        String::from_utf8(output.clone()).unwrap(),
+                        output
+                    );
+                    prop_assert!(output.is_empty());
+                }
+                Err(e) => {
+                    println!("{:?} printing {}", e,  String::from_utf8(output).unwrap());
+                    prop_assert!(false, "Failed to interpret tree");
+                }
+            }
+        }
+
+        #[test]
+        fn empty_format_empty_result(
+            name in ast::arb_name()
+                .prop_filter("Backslash is never empty".to_owned(),
+                             |n| *n != Name::Backslash)
+                .prop_filter("Quote is never empty".to_owned(),
+                             |n| *n != Name::Quote),
+            style in vec(ast::arb_style(), 1..10),
+            bash_prompt in any::<bool>()
+        ) {
+            let stats = Stats::default();
+            let interior = Expression::Named { name, sub: Tree::new(), };
+            let exp = Expression::Format {
+                style,
+                sub: Tree(vec![interior]),
+            };
+
+            let mut interpreter = Interpreter::new(stats, true, bash_prompt);
+            let mut output = Vec::with_capacity(32);
+            match interpreter.evaluate(&Tree(vec![exp.clone()]), &mut output) {
+                Ok(()) => {
+                    println!(
+                        "interpreted {} as {} ({:?})",
+                        exp,
+                        String::from_utf8(output.clone()).unwrap(),
+                        output
+                    );
+                    prop_assert!(output.is_empty());
+                }
+                Err(e) => {
+                    println!("{:?} printing {}", e,  String::from_utf8(output.clone()).unwrap());
+                    prop_assert!(false, "Failed to interpret tree");
                 }
             }
         }
