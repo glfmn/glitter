@@ -5,7 +5,7 @@
 
 **Git status summary with custom formats, perfect for your shell prompt**
 
-[![Crates.io](https://img.shields.io/crates/v/glit.svg)]()[![Build Status](https://travis-ci.org/glfmn/glitter.svg?branch=master)](https://travis-ci.org/glfmn/glitter)
+[![Crates.io](https://img.shields.io/crates/v/glit.svg)](https://crates.io/crates/glit)[![Build Status](https://travis-ci.org/glfmn/glitter.svg?branch=master)](https://travis-ci.org/glfmn/glitter)
 
 # Installation
 
