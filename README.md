@@ -56,7 +56,7 @@ __set_prompt() {
 export PROMPT_COMMAND=__set_prompt
 ```
 
-Where the variable **PS1_FMT** contains your glitter format.  Here are a few examples you might want to try out on your system.
+Where the variable **GIT_FMT** contains your glitter format and **PS1_FMT** contains a fallback to use outside of git repositories.  Here are a few examples you might want to try out on your system.
 
 | Example `fmt`                                                                                              | Result                                                |
 |:-----------------------------------------------------------------------------------------------------------|:------------------------------------------------------|
