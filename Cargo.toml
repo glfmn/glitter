@@ -1,21 +1,42 @@
 [package]
 name = "glit"
-version = "0.1.4"
+version = "0.2.0"
 authors = ["Gwen Lofman <Gwen@Lofman.io>"]
 description = "A utility for pretty-printing git stats"
 license = "MPL-2.0"
 readme = "README.md"
 repository = "https://github.com/glfmn/glitter"
+homepage = "https://github.com/glfmn/glitter"
 keywords = ["DSL", "git", "gist", "status", "pretty-printing"]
 exclude = [
     "img/*.gif"
 ]
+edition = "2018"
+
+[lib]
+name = "glitter_lang"
+path = "lib/lib.rs"
+bench = true
 
 [dependencies]
-ansi_term = "0.11"
-git2 = "0.7.1"
-clap = "~2.29"
+structopt = "0.2.18"
+git2 = "0.9"
 nom = "^3.2"
+human-panic = "1.0.1"
+
+[patch.crates-io]
+ansi_term = { git = "https://github.com/glfmn/rust-ansi-term", branch = "escape_sequence" }
 
 [dev-dependencies]
 proptest = "0.8.6"
+criterion = "0.2"
+
+[[bench]]
+name = "interpreter"
+harness = false
+
+[profile.release]
+debug = true
+
+[profile.bench]
+debug = true

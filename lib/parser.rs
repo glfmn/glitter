@@ -1,8 +1,10 @@
 //! Format parser, determines the syntax for pretty formats
 
-use ast::{Expression, Name, Style, Tree};
+use crate::ast::{Expression, Name, Style, Tree};
 use nom::{digit, IResult};
 use std::str::{self, Utf8Error};
+
+pub type ParseError = nom::IError;
 
 named! {
     backslash<&[u8], Name>,
@@ -99,6 +101,8 @@ named! {
     )
 }
 
+use crate::ast::Color::*;
+
 named! {
     reset<&[u8], Style>,
     do_parse!(tag!("~") >> (Style::Reset))
@@ -121,82 +125,82 @@ named! {
 
 named! {
     fg_red<&[u8], Style>,
-    do_parse!(tag!("r") >> (Style::FgRed))
+    do_parse!(tag!("r") >> (Style::Fg(Red)))
 }
 
 named! {
     bg_red<&[u8], Style>,
-    do_parse!(tag!("R") >> (Style::BgRed))
+    do_parse!(tag!("R") >> (Style::Bg(Red)))
 }
 
 named! {
     fg_green<&[u8], Style>,
-    do_parse!(tag!("g") >> (Style::FgGreen))
+    do_parse!(tag!("g") >> (Style::Fg(Green)))
 }
 
 named! {
     bg_green<&[u8], Style>,
-    do_parse!(tag!("G") >> (Style::BgGreen))
+    do_parse!(tag!("G") >> (Style::Bg(Green)))
 }
 
 named! {
     fg_yellow<&[u8], Style>,
-    do_parse!(tag!("y") >> (Style::FgYellow))
+    do_parse!(tag!("y") >> (Style::Fg(Yellow)))
 }
 
 named! {
     bg_yellow<&[u8], Style>,
-    do_parse!(tag!("Y") >> (Style::BgYellow))
+    do_parse!(tag!("Y") >> (Style::Bg(Yellow)))
 }
 
 named! {
     fg_blue<&[u8], Style>,
-    do_parse!(tag!("b") >> (Style::FgBlue))
+    do_parse!(tag!("b") >> (Style::Fg(Blue)))
 }
 
 named! {
     bg_blue<&[u8], Style>,
-    do_parse!(tag!("B") >> (Style::BgBlue))
+    do_parse!(tag!("B") >> (Style::Bg(Blue)))
 }
 
 named! {
     fg_magenta<&[u8], Style>,
-    do_parse!(tag!("m") >> (Style::FgMagenta))
+    do_parse!(tag!("m") >> (Style::Fg(Magenta)))
 }
 
 named! {
     bg_magenta<&[u8], Style>,
-    do_parse!(tag!("M") >> (Style::BgMagenta))
+    do_parse!(tag!("M") >> (Style::Bg(Magenta)))
 }
 
 named! {
     fg_cyan<&[u8], Style>,
-    do_parse!(tag!("c") >> (Style::FgCyan))
+    do_parse!(tag!("c") >> (Style::Fg(Cyan)))
 }
 
 named! {
     bg_cyan<&[u8], Style>,
-    do_parse!(tag!("C") >> (Style::BgCyan))
+    do_parse!(tag!("C") >> (Style::Bg(Cyan)))
 }
 
 named! {
     fg_white<&[u8], Style>,
-    do_parse!(tag!("w") >> (Style::FgWhite))
+    do_parse!(tag!("w") >> (Style::Fg(White)))
 }
 
 named! {
     bg_white<&[u8], Style>,
-    do_parse!(tag!("W") >> (Style::BgWhite))
+    do_parse!(tag!("W") >> (Style::Bg(White)))
 }
 
 named! {
     fg_black<&[u8], Style>,
-    do_parse!(tag!("k") >> (Style::FgBlack))
+    do_parse!(tag!("k") >> (Style::Fg(Black)))
 }
 
 named! {
     bg_black<&[u8], Style>,
-    do_parse!(tag!("K") >> (Style::BgBlack))
+    do_parse!(tag!("K") >> (Style::Bg(Black)))
 }
 
 fn u8_from_bytes(input: &[u8]) -> u8 {
@@ -220,7 +224,7 @@ named! {
         tag!(",") >>
         b: ansi_num >>
         tag!("]") >>
-        (Style::FgRGB(r,g,b))
+        (Style::Fg(RGB(r,g,b)))
     )
 }
 
@@ -234,7 +238,7 @@ named! {
         tag!(",") >>
         b: ansi_num >>
         tag!("}") >>
-        (Style::BgRGB(r,g,b))
+        (Style::Bg(RGB(r,g,b)))
     )
 }
 
@@ -310,9 +314,9 @@ fn convert_vec_utf8(v: Vec<u8>) -> Result<String, Utf8Error> {
     str::from_utf8(slice).map(|s| s.to_owned())
 }
 
-/// Parse a string from slice
-///
-/// https://github.com/Rydgel/monkey-rust/blob/master/lib/lexer/mod.rs
+// Parse a string from slice
+//
+// https://github.com/Rydgel/monkey-rust/blob/master/lib/lexer/mod.rs
 named! {
     string<String>,
     delimited!(
@@ -393,10 +397,18 @@ pub fn expression(input: &[u8]) -> IResult<&[u8], Expression> {
     )
 }
 
+/// Parse a format
+pub fn parse<I>(input: I) -> Result<Tree, ParseError>
+where
+    I: AsRef<[u8]>,
+{
+    expression_tree(input.as_ref()).to_full_result()
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
-    use ast::arb_expression;
+    use crate::ast::arb_expression;
 
     proptest! {
         #[test]
@@ -524,7 +536,7 @@ mod test {
     fn format_rgb() {
         let test = b"#[42,0,0];{0,0,42}(\\b\\B)";
         let expect = Expression::Format {
-            style: vec![Style::FgRGB(42, 0, 0), Style::BgRGB(0, 0, 42)],
+            style: vec![Style::Fg(RGB(42, 0, 0)), Style::Bg(RGB(0, 0, 42))],
             sub: Tree(vec![
                 Expression::Named {
                     name: Name::Branch,
@@ -581,7 +593,7 @@ mod test {
         let expect = str::from_utf8(test).expect("Invalid utf-8");
         let parse = match expression_tree(test) {
             IResult::Done(_, exp) => exp,
-            fail @ _ => panic!("Failed to parse with result {:?}", fail),
+            fail => panic!("Failed to parse with result {:?}", fail),
         };
         assert!(
             format!("{}", parse) == expect,

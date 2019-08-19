@@ -25,15 +25,22 @@ then
         fi
     fi
 
-    echo "${GREEN} Testing commit\n\n"
+    echo "${GREEN} Testing commit\n\n${NC}"
 
     cargo doc --no-deps &&
-    cargo build &&
-    # Build and test without profiler
-    cargo test --all
-
+    cargo check &&
+    cargo check --benches &&
+    cargo test --all &&
     # Capture exit code from tests
     status=$?
+
+    for crate in $(find $(pwd) -name Cargo.toml); do
+      (
+        echo >&2 "\tRunning tests for ${GREEN}${crate}${NC}:"
+        export RUST_BACKTRACE=1
+        cargo test --manifest-path=${crate}
+      ) || status=1
+    done
 
     # Revert stash if changes were stashed to restor working directory files
     if [ "$stash" -eq 1 ]

@@ -1,306 +1,195 @@
-//! glitter, a git repository status pretty-printer
+//! Glitter
 //!
-//! An expression based, ergonomic language for writing the status of your git repository into
-//! your shell prompt.
+//! # Usage
 //!
-//! For example :`"\<\b\(\+\-)>\[\M\A\R\D':'\m\a\u\d]\{\h('@')}':'"` results in something that
-//! might look like `<master(+1)>[M1:D3]{@5}:` where
+//! Basic usage for `glit` is:
 //!
-//! - `master` is the name of the current branch.
-//! - `+1`: means we are 1 commit ahead of the remote branch
-//! - `M1`: the number of staged modifications
-//! - `D3`: is the number of unstaged deleted files
-//! - `@5`: is the number of stashes
+//! ```
+//! $ glit <FORMAT>
+//! ```
 //!
-//! `glit` expressions also support inline format expressions to do things like making text red,
-//! or bold, or using ANSI terminal escape sequences, or setting RGB colors for your git
-//! information.
+//! Learn more and get help with:
 //!
-//! # Grammar
+//! ```
+//! $ glit help
+//! ```
 //!
-//! `glit` expressions have four basic types of expressions:
+//! ## Setting your shell to use `glit`
 //!
-//! 1. Named expressions
-//! 2. Format expressions
-//! 3. Group expressions
-//! 4. Literals
+//! Too add a glitter format to your shell prompt if you are in a bash shell, add the
+//! following snippet to your `~/.bashrc`:
 //!
-//! ## Literals
+//! ```bash
+//! # Use environment variables to store formats if you want to be able to easily
+//! # change them from your shell by just doing:
+//! #
+//! #   $ export PS1_FMT="#r;*('TODO')"
 //!
-//! Any characters between single quotes literal, except for backslashes and single quotes.
-//! Literals are left untouched.  For example, `'literal'` outputs `literal`.
+//! # Format to use inside of git repositories or their sub-folders
+//! export PS1_FMT="\<#m;*(\b)#m(\B(#~('..')))\(#g(\+)#r(\-))>\[#g;*(\M\A\R\D)#r;*(\m\a\u\d)]\{#m;*;_(\h('@'))}':'#y;*('\w')'\n\$ '"
 //!
-//! ## Named expressions
+//! # Format to use outside of git repositories
+//! export PS1_ELSE_FMT="#g(#*('\u')'@\h')':'#b;*('\w')'\$ '"
 //!
-//! Named expressions represent information about your git repository.
+//! # Prompt command which is used to set the prompt, includes some extra useful
+//! # functionality such as showing the last exit code
+//! __set_prompt() {
+//!     local EXIT="$?"
+//!     # Capture last command exit flag first
 //!
-//! | Name  | Meaning                        | Example         |
-//! |:------|:-------------------------------|:----------------|
-//! | `\b`  | branch name or head commit id  | `master`        |
-//! | `\B`  | remote name                    | `origin/master` |
-//! | `\+`  | # of commits ahead remote      | `+1`            |
-//! | `\-`  | # of commits behind remote     | `-1`            |
-//! | `\m`  | # of unstaged modified files   | `M1`            |
-//! | `\a`  | # of untracked files           | `?1`            |
-//! | `\d`  | # of unstaged deleted files    | `D1`            |
-//! | `\u`  | # of merge conflicts           | `U1`            |
-//! | `\M`  | # of staged modified files     | `M1`            |
-//! | `\A`  | # of added files               | `A1`            |
-//! | `\R`  | # of renamed files             | `R1`            |
-//! | `\D`  | # of staged deleted files      | `D1`            |
-//! | `\h`  | # of stashed files             | `H1`            |
+//!     # Clear out prompt
+//!     PS1=""
 //!
-//! You can provide other expressions as arguments to expressions which replace the default prefix
-//! which appears before the result or file count.  For example, `\h('@')` will output `@3`
-//! instead of `H3` if your repository has 3 stashed files.  You can provide an arbitrary number
-//! of valid expressions as a prefix to another named expression.
+//!     # If the last command didn't exit 0, display the exit code
+//!     [ "$EXIT" -ne "0" ] && PS1+="$EXIT "
 //!
-//! ## Group Expressions
+//!     # identify debian chroot, if one exists
+//!     if [ -z "${debian_chroot:-}" ] && [ -r /etc/debian_chroot ]; then
+//!       PS1+="${debian_chroot:+($(cat /etc/debian_chroot))}"
+//!     fi
 //!
-//! Glitter will surround grouped expressions with parentheses or brackets, and will print nothing
-//! if the group is empty.
+//!     # Render the appropriate format depending on whether we are in a git repo
+//!     PS1+="$(glit "$PS1_FMT" -e "$PS1_ELSE_FMT")"
+//! }
 //!
-//! | Macro       | Result                           |
-//! |:------------|:---------------------------------|
-//! | `\[]`       | empty                            |
-//! | `\()`       | empty                            |
-//! | `\<>`       | empty                            |
-//! | `\{}`       | empty                            |
-//! | `\{\b}`     | `{master}`                       |
-//! | `\<\+\->`   | `<+1-1>`                         |
-//! | `\[\M\A\R]` | `[M1A3]` where `\R` is empty     |
-//! | `\[\r\(\a)]`| empty, when `\r`, `\a` are empty |
+//! export PROMPT_COMMAND=__set_prompt
+//! ```
 //!
-//! ## Format Expressions
+//! Where the variable **PS1_FMT** contains your glitter format.  Here are a few
+//! examples you might want to try out on your system.
 //!
-//! Glitter expressions support ANSI terminal formatting through the following styles:
+//! | Example `fmt`                                                                                              | Result                                                |
+//! |:-----------------------------------------------------------------------------------------------------------|:------------------------------------------------------|
+//! | `"\<#m;*(\b)#m(\B(#~('..')))\(#g(\+)#r(\-))>\[#g;*(\M\A\R\D)#r;*(\m\a\u\d)]\{#m;*;_(\h('@'))}"`            | ![long example glitter](img/example-1.png)            |
+//! | `"\(#m;*(\b)#g(\+)#r(\-))\[#g(\M\A\R\D)#r(\m\a\u\d)]\{#m;_(\h('@'))}':'"`                                  | ![short example glitter](img/example-2.png)           |
+//! | `"#g;*(\b)#y(\B(#~('..')))\[#g(\+(#~('ahead ')))]\[#r(\-(#~('behind ')))]' '#g;_(\M\A\R\D)#r;_(\m\a\u\d)"` | ![`git status sb` example glitter](img/example-3.png) |
 //!
-//! | Format               | Meaning                                       |
-//! |:---------------------|:----------------------------------------------|
-//! | `#~(`...`)`          | reset                                         |
-//! | `#_(`...`)`          | underline                                     |
-//! | `#i(`...`)`          | italic text                                   |
-//! | `#*(`...`)`          | bold text                                     |
-//! | `#r(`...`)`          | red text                                      |
-//! | `#g(`...`)`          | green text                                    |
-//! | `#b(`...`)`          | blue text                                     |
-//! | `#m(`...`)`          | magenta/purple text                           |
-//! | `#y(`...`)`          | yellow text                                   |
-//! | `#w(`...`)`          | white text                                    |
-//! | `#k(`...`)`          | bright black text                             |
-//! | `#[01,02,03](`...`)` | 24 bit rgb text color                         |
-//! | `#R(`...`)`          | red background                                |
-//! | `#G(`...`)`          | green background                              |
-//! | `#B(`...`)`          | blue background                               |
-//! | `#M(`...`)`          | magenta/purple background                     |
-//! | `#Y(`...`)`          | yellow background                             |
-//! | `#W(`...`)`          | white background                              |
-//! | `#K(`...`)`          | bright black background                       |
-//! | `#{01,02,03}(`...`)` | 24 bit rgb background color                   |
-//! | `#01(`...`)`         | Fixed terminal color                          |
+//! # Background
 //!
-//! Format styles can be combined in a single expression by separating them with semicolons:
+//! Most shells provide the ability to customize the shell prompt which appears before every command.
+//! On my system, the default looks like:
 //!
-//! | Format         | Meaning                        |
-//! |:---------------|:-------------------------------|
-//! | `#w;K(`...`)`  | white text, black background   |
-//! | `#r;*(`...`)`  | red bold text                  |
-//! | `#42(`...`)`   | a forest greenish color        |
-//! | `#_;*(`...`)`  | underline bold text            |
-
-extern crate ansi_term;
+//! ```
+//! gwen@tpy12:~/Documents/dev/util/glitter$
+//! ```
+//!
+//! Its intended to provide useful information about your shell.  However, it normally does not
+//! include information about git repositories, requiring the near constant use of `git status`
+//! to understand the state of the repository.  The solution is to set a prompt command and
+//! dynamically update your shell with the information you want.  `glit` is made for precisely
+//! this purpose: you can provide a format, and glitter will interpret it, inserting the information
+//! in the format you want.
+extern crate structopt;
 #[macro_use]
-extern crate clap;
-extern crate git2;
-#[macro_use]
-extern crate nom;
+extern crate human_panic;
 
-#[cfg_attr(test, macro_use)]
-#[cfg(test)]
-extern crate proptest;
-
-mod ast;
-mod git;
-mod interpreter;
-mod parser;
-
-use clap::ArgMatches;
 use git2::Repository;
+use std::fmt::{self, Display};
+use std::path::PathBuf;
+use structopt::StructOpt;
 
-const DESC: &'static str = "Glitter is a git repository status pretty-printing utility, useful for
-making custom prompts which incorporate information about the current
-git repository, such as the branch name, number of unstaged changes,
-and more.";
+use glitter_lang::{git, glitter};
 
-/// Program operation mode, retreived from Args
-#[derive(Debug, PartialEq, Eq)]
-enum Mode<'a> {
-    /// Tell if we are inside a git repository or not at the desired path
-    IsRepo(&'a str),
-    /// Parse pretty-printing format and insert git stats
-    Glitter {
-        /// Path of the git repository to check
-        path: &'a str,
-        /// Format string to parse
-        format: &'a str,
-        else_format: Option<&'a str>,
-    },
-    Verify {
-        /// Format string to parse
-        format: &'a str,
-    },
+#[derive(StructOpt, Debug)]
+#[structopt(name = "glit")]
+/// Glitter is a git repository status pretty-printing utility intended
+/// for making custom shell prompts which incorporate information about
+/// the current git repository, such as the branch name, number of
+/// unstaged changes, and more.
+struct Opt {
+    /// Format used in git repositories
+    git_format: String,
+
+    /// Format used outside git repositories
+    #[structopt(short = "e", long = "else-format")]
+    else_format: Option<String>,
+
+    /// Ignore syntax errors
+    #[structopt(long = "silent")]
+    silent_mode: bool,
+
+    /// Escape format characters for bash shell prompts
+    ///
+    /// Without the escapes, BASH prompt has broken line wrapping
+    #[structopt(long = "bash-escapes", short)]
+    bash_escapes: bool,
+
+    /// Path to the git repository represented by the format
+    #[structopt(long, short, parse(from_os_str), default_value = ".")]
+    path: PathBuf,
 }
 
-impl<'a> Mode<'a> {
-    fn from_matches(matches: &'a ArgMatches) -> Self {
-        if let Some(matches) = matches.subcommand_matches("isrepo") {
-            return Mode::IsRepo(matches.value_of("path").unwrap_or("."));
-        };
-        if let Some(matches) = matches.subcommand_matches("verify") {
-            Mode::Verify {
-                format: matches.value_of("FORMAT").unwrap(),
-            }
-        } else {
-            Mode::Glitter {
-                path: matches.value_of("path").unwrap_or("."),
-                format: matches.value_of("FORMAT").unwrap(),
-                else_format: matches.value_of("else"),
-            }
+#[derive(Debug)]
+enum Error {
+    Git(git2::Error),
+    MissingFormat(PathBuf),
+    Glitter(glitter_lang::Error),
+}
+
+impl From<git2::Error> for Error {
+    fn from(e: git2::Error) -> Self {
+        Error::Git(e)
+    }
+}
+
+impl From<glitter_lang::Error> for Error {
+    fn from(e: glitter_lang::Error) -> Self {
+        Error::Glitter(e)
+    }
+}
+
+impl Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use Error::*;
+        match self {
+            Git(e) => write!(f, "Git error: {}", e),
+            MissingFormat(p) => write!(
+                f,
+                "No git repository in `{}` and no alternate format provided",
+                p.to_string_lossy()
+            ),
+            Glitter(e) => write!(f, "Error with format: {:?}", e),
         }
     }
 }
 
-/// Program exit conditions, allows for smoother cleanup and operation of the main program
-#[derive(Debug, PartialEq, Eq)]
-enum Exit {
-    Failure(i32),
-    Success,
-}
+fn run() -> Result<(), Error> {
+    let opt = Opt::from_args();
 
-/// Error types for program operation
-#[derive(Debug, PartialEq, Eq)]
-enum ProgramErr<'a> {
-    BadPath(Box<&'a str>),
-    BadFormat(Box<&'a str>),
-    BadParse(Box<&'a str>, String),
+    // Get a format and stats from the git repository or exit early with an error
+    let (stats, format) = Repository::discover(opt.path.clone())
+        .map(|mut repo| (git::Stats::new(&mut repo), opt.git_format.clone()))
+        // if no repository is found, use the alt format if it exists
+        .or_else(|_| {
+            if let Some(format) = opt.else_format.clone() {
+                Ok((git::Stats::default(), format))
+            } else {
+                Err(Error::MissingFormat(opt.path.clone()))
+            }
+        })?;
+
+    use std::io::BufWriter;
+    let mut out = BufWriter::with_capacity(128, std::io::stdout());
+
+    glitter(stats, format, true, opt.bash_escapes, &mut out)?;
+
+    out.into_inner()
+        .expect("Unable to complete writing format to output");
+    println!();
+
+    Ok(())
 }
 
 fn main() {
-    let exit = {
-        // Read and parse command-line arguments
-        let matches = clap_app!(glit =>
-            (version: crate_version!())
-            (author: crate_authors!())
-            (about: crate_description!())
-            (after_help: DESC)
-            (@arg FORMAT: +required "pretty-printing format specification")
-            (@arg path: -p --path +takes_value "path to repository [default \".\"]")
-            (@arg else: -e --else +takes_value "format to use outside of a repository")
-            (@setting ArgsNegateSubcommands)
-            (@setting SubcommandsNegateReqs)
-            (@subcommand isrepo =>
-                (about: "Determine if given path is a git repository")
-                (@arg path: -p --path +takes_value "path to test [default \".\"]")
-            )
-            (@subcommand verify =>
-                (about: "Determine if FORMAT parses correctly")
-                (@arg FORMAT: +required "pretty-printing format specification")
-            )
-        ).get_matches();
+    setup_panic!();
 
-        use ProgramErr::{BadFormat, BadParse, BadPath};
-
-        // Carry out primary program operation
-        let error: Result<(), ProgramErr> = match Mode::from_matches(&matches) {
-            // Determine whether the given path is a git repository
-            Mode::IsRepo(path) => match Repository::discover(path) {
-                Ok(_) => Ok(()),
-                Err(_) => Err(BadPath(Box::new(path))),
-            },
-            // Parse pretty format and insert git status
-            Mode::Glitter {
-                path,
-                format,
-                else_format,
-            } => match Repository::discover(path) {
-                Ok(mut repo) => {
-                    let parse = parser::expression_tree(format.as_bytes()).to_result();
-                    match parse {
-                        Err(_) => Err(BadFormat(Box::new(format))),
-                        Ok(parsed) => {
-                            let stats = git::Stats::new(&mut repo);
-                            let interpreter = interpreter::Interpreter::new(stats.unwrap());
-                            match interpreter.evaluate(&parsed) {
-                                Ok(result) => {
-                                    println!("{}", result);
-                                    Ok(())
-                                }
-                                Err(_) => Err(BadFormat(Box::new(format))),
-                            }
-                        }
-                    }
-                }
-                Err(_) => match else_format {
-                    Some(fmt) => match parser::expression_tree(fmt.as_bytes()).to_result() {
-                        Err(_) => Err(BadFormat(Box::new(format))),
-                        Ok(parsed) => {
-                            let int = interpreter::Interpreter::new(Default::default());
-                            match int.evaluate(&parsed) {
-                                Ok(result) => {
-                                    println!("{}", result);
-                                    Ok(())
-                                }
-                                Err(_) => Err(BadFormat(Box::new(format))),
-                            }
-                        }
-                    },
-                    None => Err(BadPath(Box::new(path))),
-                },
-            },
-            Mode::Verify { format } => {
-                let parse = parser::expression_tree(format.as_bytes());
-                if parse.is_incomplete() {
-                    Err(BadFormat(Box::new(format)))
-                } else {
-                    match parse.to_result() {
-                        Err(_) => Err(BadFormat(Box::new(format))),
-                        Ok(parsed) => {
-                            if format!("{}", parsed) != format {
-                                Err(BadParse(Box::new(format), format!("{}", parsed)))
-                            } else {
-                                Ok(())
-                            }
-                        }
-                    }
-                }
-            }
-        };
-
-        // Handle errors and instruct program what exit code to use
-        match error {
-            Ok(()) => Exit::Success,
-            Err(BadPath(path)) => {
-                eprintln!("\"{}\" is not a git repository", path);
-                Exit::Failure(1)
-            }
-            Err(BadFormat(format)) => {
-                eprintln!("unable to parse format specifier \"{}\"", format);
-                Exit::Failure(1)
-            }
-            Err(BadParse(format, parsed)) => {
-                eprintln!(
-                    "parsed \"{}\" does not match provided \"{}\"",
-                    parsed, format
-                );
-                Exit::Failure(1)
-            }
+    match run() {
+        Ok(()) => {
+            std::process::exit(0);
         }
-    };
-
-    // Exit with desiered exit code, done outside of the scope of the main program so most values
-    // have a chance to clean up and exit.
-    match exit {
-        Exit::Failure(code) => std::process::exit(code),
-        _ => (),
+        Err(e) => {
+            eprintln!("{}", e);
+            std::process::exit(1);
+        }
     };
 }

@@ -1,10 +1,19 @@
-# Glitter
 
-![](img/glit-demo.gif)
+# ✨ glitter
 
-**A domain-specific language for printing git stats in custom formats.**
+![Glit is an informative shell prompt](https://raw.githubusercontent.com/glfmn/glitter/develop/img/glit-demo.gif)
 
-[![Crates.io](https://img.shields.io/crates/v/glit.svg)]()[![Build Status](https://travis-ci.org/glfmn/glitter.svg?branch=master)](https://travis-ci.org/glfmn/glitter)
+**Git status summary with custom formats, perfect for your shell prompt**
+
+[![Crates.io](https://img.shields.io/crates/v/glit.svg)](https://crates.io/crates/glit)[![Build Status](https://travis-ci.org/glfmn/glitter.svg?branch=master)](https://travis-ci.org/glfmn/glitter)
+
+**Get instant feedback from every action taken.**
+
+![Glit tells you when your branch has changed](img/glit-demo-2.gif)
+
+**Change your format to suit your needs and tastes.**
+
+![Use the provided script to create an environment variable that stores your format.](img/glit-demo-3.gif)
 
 # Installation
 
@@ -13,6 +22,48 @@ As long as you have the rust tool-chain set up, `cmake` and `openssl` installed,
 ```
 $ cargo install glit
 ```
+
+## Setting your shell to use `glit`
+
+Too add a glitter format to your shell prompt if you are in a bash shell, add the following snippet to your `~/.bashrc`:
+
+```bash
+# Use environment variables to store formats if you want to be able to easily
+# change them from your shell by just doing:
+#
+#   $ export GIT_FMT="#r;*('TODO')"
+
+# Format to use inside of git repositories or their sub-folders
+export GIT_FMT="\<#m;*(\b)#m(\B(#~('..')))\(#g(\+)#r(\-))>\[#g;*(\M\A\R\D)#r;*(\m\a\u\d)]\{#m;*;_(\h('@'))}':'#y;*('\w')'\n\$ '"
+
+# Format to use outside of git repositories
+export PS1_FMT="#g(#*('\u')'@\h')':'#b;*('\w')'\$ '"
+
+# Prompt command which is used to set the prompt, includes some extra useful
+# functionality such as showing the last exit code
+__set_prompt() {
+    # Capture last command exit flag
+    local EXIT="$?"
+
+    PS1=""
+    # If the last command didn't exit 0, display the exit code
+    [ "$EXIT" -ne "0" ] && PS1="$EXIT "
+
+    # Render the appropriate format depending on whether we are in a git repo
+    PS1+="$(glit "$GIT_FMT" -b -e "$PS1_FMT")"
+}
+
+export PROMPT_COMMAND=__set_prompt
+```
+
+Where the variable **PS1_FMT** contains your glitter format.  Here are a few examples you might want to try out on your system.
+
+| Example `fmt`                                                                                              | Result                                                |
+|:-----------------------------------------------------------------------------------------------------------|:------------------------------------------------------|
+| `"\<#m;*(\b)#m(\B(#~('..')))\(#g(\+)#r(\-))>\[#g;*(\M\A\R\D)#r;*(\m\a\u\d)]\{#m;*;_(\h('@'))}"`            | ![long example glitter](img/example-1.png)            |
+| `"\(#m;*(\b)#g(\+)#r(\-))\[#g(\M\A\R\D)#r(\m\a\u\d)]\{#m;_(\h('@'))}':'"`                                  | ![short example glitter](img/example-2.png)           |
+| `"#g;*(\b)#y(\B(#~('..')))\[#g(\+(#~('ahead ')))]\[#r(\-(#~('behind ')))]' '#g;_(\M\A\R\D)#r;_(\m\a\u\d)"` | ![`git status sb` example glitter](img/example-3.png) |
+
 
 ## Dependencies
 
@@ -38,59 +89,14 @@ Basic usage for `glit` is:
 $ glit <FORMAT>
 ```
 
+![demo of glit command](img/glit-command.gif)
+
 Learn more and get help with:
 
 ```
 $ glit help
 ```
 
-## Setting your shell to use `glit`
-
-Too add a glitter format to your shell prompt if you are in a bash shell, add the following snippet to your `~/.bashrc`:
-
-```bash
-# Use environment variables to store formats if you want to be able to easily
-# change them from your shell by just doing:
-#
-#   $ export PS1_FMT="#r;*('TODO')"
-
-# Format to use inside of git repositories or their sub-folders
-export PS1_FMT="\<#m;*(\b)#m(\B(#~('..')))\(#g(\+)#r(\-))>\[#g;*(\M\A\R\D)#r;*(\m\a\u\d)]\{#m;*;_(\h('@'))}':'#y;*('\w')'\n\$ '"
-
-# Format to use outside of git repositories
-export PS1_ELSE_FMT="#g(#*('\u')'@\h')':'#b;*('\w')'\$ '"
-
-# Prompt command which is used to set the prompt, includes some extra useful
-# functionality such as showing the last exit code
-__set_prompt() {
-    local EXIT="$?"
-    # Capture last command exit flag first
-
-    # Clear out prompt
-    PS1=""
-
-    # If the last command didn't exit 0, display the exit code
-    [ "$EXIT" -ne "0" ] && PS1+="$EXIT "
-
-    # identify debian chroot, if one exists
-    if [ -z "${debian_chroot:-}" ] && [ -r /etc/debian_chroot ]; then
-      PS1+="${debian_chroot:+($(cat /etc/debian_chroot))}"
-    fi
-
-    # Render the appropriate format depending on whether we are in a git repo
-    PS1+="$(glit "$PS1_FMT" -e "$PS1_ELSE_FMT")"
-}
-
-export PROMPT_COMMAND=__set_prompt
-```
-
-Where the variable **PS1_FMT** contains your glitter format.  Here are a few examples you might want to try out on your system.
-
-| Example `fmt`                                                                                              | Result                                                |
-|:-----------------------------------------------------------------------------------------------------------|:------------------------------------------------------|
-| `"\<#m;*(\b)#m(\B(#~('..')))\(#g(\+)#r(\-))>\[#g;*(\M\A\R\D)#r;*(\m\a\u\d)]\{#m;*;_(\h('@'))}"`            | ![long example glitter](img/example-1.png)            |
-| `"\(#m;*(\b)#g(\+)#r(\-))\[#g(\M\A\R\D)#r(\m\a\u\d)]\{#m;_(\h('@'))}':'"`                                  | ![short example glitter](img/example-2.png)           |
-| `"#g;*(\b)#y(\B(#~('..')))\[#g(\+(#~('ahead ')))]\[#r(\-(#~('behind ')))]' '#g;_(\M\A\R\D)#r;_(\m\a\u\d)"` | ![`git status sb` example glitter](img/example-3.png) |
 
 ## Background
 
@@ -167,16 +173,16 @@ Expressions generally only render any output if their corresponding values aren'
 
 Glitter will surround grouped expressions with parentheses or brackets, and will print nothing if the group is empty.
 
-| Macro       | Result                           |
-|:------------|:---------------------------------|
-| `\[]`       | empty                            |
-| `\()`       | empty                            |
-| `\<>`       | empty                            |
-| `\{}`       | empty                            |
-| `\{\b}`     | `{master}`                       |
-| `\<\+\->`   | `<+1-1>`                         |
-| `\[\M\A\R]` | `[M1A3]` where `\R` is empty     |
-| `\[\r\(\a)]`| empty, when `\r`, `\a` are empty |
+| Macro       | Result                       |
+|:------------|:-----------------------------|
+| `\[]`       | empty                        |
+| `\()`       | empty                        |
+| `\<>`       | empty                        |
+| `\{}`       | empty                        |
+| `\{\b}`     | `{master}`                   |
+| `\<\+\->`   | `<+1-1>`                     |
+| `\[\M\A\R]` | `[M1A3]` where `\R` is 0     |
+| `\[\r\(\a)]`| empty, when `\r`, `\a` are 0 |
 
 ```
 $ glit "\b\<\M>"

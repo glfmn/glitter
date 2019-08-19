@@ -29,21 +29,21 @@ pub enum Name {
 impl fmt::Display for Name {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let literal = match self {
-            &Name::Stashed => "h",
-            &Name::Branch => "b",
-            &Name::Remote => "B",
-            &Name::Ahead => "+",
-            &Name::Behind => "-",
-            &Name::Conflict => "u",
-            &Name::Added => "A",
-            &Name::Untracked => "a",
-            &Name::Modified => "M",
-            &Name::Unstaged => "m",
-            &Name::Deleted => "d",
-            &Name::DeletedStaged => "D",
-            &Name::Renamed => "R",
-            &Name::Backslash => "\\",
-            &Name::Quote => "\'",
+            Name::Stashed => "h",
+            Name::Branch => "b",
+            Name::Remote => "B",
+            Name::Ahead => "+",
+            Name::Behind => "-",
+            Name::Conflict => "u",
+            Name::Added => "A",
+            Name::Untracked => "a",
+            Name::Modified => "M",
+            Name::Unstaged => "m",
+            Name::Deleted => "d",
+            Name::DeletedStaged => "D",
+            Name::Renamed => "R",
+            Name::Backslash => "\\",
+            Name::Quote => "\'",
         };
         write!(f, "{}", literal)
     }
@@ -72,6 +72,28 @@ pub fn arb_name() -> impl Strategy<Value = Name> {
     ]
 }
 
+#[derive(Debug, PartialEq, Eq, Copy, Clone)]
+pub enum Color {
+    /// Make text red
+    Red,
+    /// Make text green
+    Green,
+    /// Make the text yellow
+    Yellow,
+    /// Make the text blue
+    Blue,
+    /// Make the text purple
+    Magenta,
+    /// Make the text cyan
+    Cyan,
+    /// Make the text white
+    White,
+    /// Make the text bright black
+    Black,
+    /// Provide a 256 color table text color value
+    RGB(u8, u8, u8),
+}
+
 /// All valid style markers
 ///
 /// Defines the range of possible styles
@@ -85,79 +107,49 @@ pub enum Style {
     Underline,
     /// Italisize text in the terminal; ANSI code 03 equivalent
     Italic,
-    /// Make text red; ANSI foreground code 31 equivalent
-    FgRed,
-    /// Make text background red ANSI background code 41 equivalent
-    BgRed,
-    /// Make text green; ANSI background code 32 equivalent
-    FgGreen,
-    /// Make text background green; ANSI code 42 equivalent
-    BgGreen,
-    /// Make the text yellow; ANSI code 33 equivalent
-    FgYellow,
-    /// Make the text background yellow; ANSI code 43 equivalent
-    BgYellow,
-    /// Make the text blue; ANSI code 34 equivalent
-    FgBlue,
-    /// Make the text background blue; ANSI code 44 equivalent
-    BgBlue,
-    /// Make the text magenta or purple; ANSI code 35 equivalent
-    FgMagenta,
-    /// Make the text background magenta or purple; ANSI code 45 equivalent
-    BgMagenta,
-    /// Make the text cyan; ANSI code 36 equivalent
-    FgCyan,
-    /// Make the text background cyan; ANSI code 46 equivalent
-    BgCyan,
-    /// Make the text white; ANSI code 37 equivalent
-    FgWhite,
-    /// Make the text background white; ANSI code 47 equivalent
-    BgWhite,
-    /// Provide a 256 color table text color value; ANSI code 38 equivalent
-    FgRGB(u8, u8, u8),
-    /// Provide a 256 color table text background color value; ANSI code 48 equivalent
-    BgRGB(u8, u8, u8),
-    /// Make the text bright black; ANSI code 90 equivalent
-    FgBlack,
-    /// Make the text background bright black; ANSI code 100 equivalent
-    BgBlack,
-    /// Provide a raw number escape code to represent terminal formatting
+    /// Set a foreground color
+    Fg(Color),
+    /// Set a background color
+    Bg(Color),
+    /// Provide Raw ANSI escape
     Number(u8),
 }
 
 impl fmt::Display for Style {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let literal = match self {
-            &Style::Reset => "~".to_string(),
-            &Style::Bold => "*".to_string(),
-            &Style::Underline => "_".to_string(),
-            &Style::Italic => "i".to_string(),
-            &Style::FgRed => "r".to_string(),
-            &Style::BgRed => "R".to_string(),
-            &Style::FgGreen => "g".to_string(),
-            &Style::BgGreen => "G".to_string(),
-            &Style::FgYellow => "y".to_string(),
-            &Style::BgYellow => "Y".to_string(),
-            &Style::FgBlue => "b".to_string(),
-            &Style::BgBlue => "B".to_string(),
-            &Style::FgMagenta => "m".to_string(),
-            &Style::BgMagenta => "M".to_string(),
-            &Style::FgCyan => "c".to_string(),
-            &Style::BgCyan => "C".to_string(),
-            &Style::FgWhite => "w".to_string(),
-            &Style::BgWhite => "W".to_string(),
-            &Style::FgRGB(r, g, b) => format!("[{},{},{}]", r, g, b),
-            &Style::BgRGB(r, g, b) => format!("{{{},{},{}}}", r, g, b),
-            &Style::FgBlack => "k".to_string(),
-            &Style::BgBlack => "K".to_string(),
-            &Style::Number(n) => n.to_string(),
+        use Color::*;
+        match self {
+            Style::Reset => write!(f, "~")?,
+            Style::Bold => write!(f, "*")?,
+            Style::Underline => write!(f, "_")?,
+            Style::Italic => write!(f, "i")?,
+            Style::Fg(Red) => write!(f, "r")?,
+            Style::Bg(Red) => write!(f, "R")?,
+            Style::Fg(Green) => write!(f, "g")?,
+            Style::Bg(Green) => write!(f, "G")?,
+            Style::Fg(Yellow) => write!(f, "y")?,
+            Style::Bg(Yellow) => write!(f, "Y")?,
+            Style::Fg(Blue) => write!(f, "b")?,
+            Style::Bg(Blue) => write!(f, "B")?,
+            Style::Fg(Magenta) => write!(f, "m")?,
+            Style::Bg(Magenta) => write!(f, "M")?,
+            Style::Fg(Cyan) => write!(f, "c")?,
+            Style::Bg(Cyan) => write!(f, "C")?,
+            Style::Fg(White) => write!(f, "w")?,
+            Style::Bg(White) => write!(f, "W")?,
+            Style::Fg(Black) => write!(f, "k")?,
+            Style::Bg(Black) => write!(f, "K")?,
+            &Style::Fg(RGB(r, g, b)) => write!(f, "[{},{},{}]", r, g, b)?,
+            &Style::Bg(RGB(r, g, b)) => write!(f, "{{{},{},{}}}", r, g, b)?,
+            &Style::Number(n) => write!(f, "{}", n)?,
         };
-        write!(f, "{}", literal)
+        Ok(())
     }
 }
 
 #[cfg(test)]
 pub fn arb_style() -> impl Strategy<Value = Style> {
+    use self::Color::*;
     use self::Style::*;
 
     prop_oneof![
@@ -165,24 +157,24 @@ pub fn arb_style() -> impl Strategy<Value = Style> {
         Just(Bold),
         Just(Underline),
         Just(Italic),
-        Just(FgRed),
-        Just(BgRed),
-        Just(FgGreen),
-        Just(BgGreen),
-        Just(FgYellow),
-        Just(BgYellow),
-        Just(FgBlue),
-        Just(BgBlue),
-        Just(FgMagenta),
-        Just(BgMagenta),
-        Just(FgCyan),
-        Just(BgCyan),
-        Just(FgWhite),
-        Just(BgWhite),
-        any::<(u8, u8, u8)>().prop_map(|(r, g, b)| FgRGB(r, g, b)),
-        any::<(u8, u8, u8)>().prop_map(|(r, g, b)| BgRGB(r, g, b)),
-        Just(FgBlack),
-        Just(BgBlack),
+        Just(Fg(Red)),
+        Just(Bg(Red)),
+        Just(Fg(Green)),
+        Just(Bg(Green)),
+        Just(Fg(Yellow)),
+        Just(Bg(Yellow)),
+        Just(Fg(Blue)),
+        Just(Bg(Blue)),
+        Just(Fg(Magenta)),
+        Just(Bg(Magenta)),
+        Just(Fg(Cyan)),
+        Just(Bg(Cyan)),
+        Just(Fg(White)),
+        Just(Bg(White)),
+        Just(Fg(Black)),
+        Just(Bg(Black)),
+        any::<(u8, u8, u8)>().prop_map(|(r, g, b)| Fg(RGB(r, g, b))),
+        any::<(u8, u8, u8)>().prop_map(|(r, g, b)| Bg(RGB(r, g, b))),
         any::<u8>().prop_map(|n| Number(n)),
     ]
 }
@@ -246,7 +238,7 @@ pub enum Expression {
 impl fmt::Display for Expression {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            &Expression::Named { ref name, ref sub } => {
+            Expression::Named { ref name, ref sub } => {
                 write!(f, "\\{}", name)?;
                 if sub.0.is_empty() {
                     Ok(())
@@ -255,12 +247,12 @@ impl fmt::Display for Expression {
                     Ok(())
                 }
             }
-            &Expression::Group {
+            Expression::Group {
                 ref l,
                 ref r,
                 ref sub,
             } => write!(f, "\\{}{}{}", l, sub, r),
-            &Expression::Format { ref style, ref sub } => {
+            Expression::Format { ref style, ref sub } => {
                 write!(f, "#")?;
                 if let Some((first, ss)) = style.split_first() {
                     write!(f, "{}", first)?;
@@ -270,7 +262,7 @@ impl fmt::Display for Expression {
                 }
                 write!(f, "({})", sub)
             }
-            &Expression::Literal(ref string) => write!(f, "'{}'", string),
+            Expression::Literal(ref string) => write!(f, "'{}'", string),
         }
     }
 }
@@ -335,6 +327,12 @@ pub struct Tree(pub Vec<Expression>);
 impl Tree {
     /// Create an empty tree
     pub fn new() -> Tree {
+        Tree(Vec::new())
+    }
+}
+
+impl Default for Tree {
+    fn default() -> Self {
         Tree(Vec::new())
     }
 }

@@ -36,7 +36,7 @@ pub struct Stats {
 
 impl Stats {
     /// Populate stats with the status of the given repository
-    pub fn new(repo: &mut Repository) -> Result<Stats, git2::Error> {
+    pub fn new(repo: &mut Repository) -> Stats {
         let mut st: Stats = Default::default();
 
         st.read_branch(repo);
@@ -45,9 +45,7 @@ impl Stats {
 
         opts.include_untracked(true).recurse_untracked_dirs(true);
 
-        {
-            let statuses = repo.statuses(Some(&mut opts))?;
-
+        if let Ok(statuses) = repo.statuses(Some(&mut opts)) {
             for status in statuses.iter() {
                 let flags = status.status();
 
@@ -78,12 +76,12 @@ impl Stats {
             }
         }
 
-        repo.stash_foreach(|_, &_, &_| {
+        let _ = repo.stash_foreach(|_, &_, &_| {
             st.stashes += 1;
             true
-        })?;
+        });
 
-        Ok(st)
+        st
     }
 
     /// Read the branch-name of the repository
