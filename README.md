@@ -74,7 +74,7 @@ __set_prompt() {
     [ "$EXIT" -ne "0" ] && PS1="$EXIT "
 
     # Render the appropriate format depending on whether we are in a git repo
-    PS1+="$(glit "$PS1_GIT_FMT" -e "$PS1_FMT")"
+    PS1+="$(glit "$PS1_GIT_FMT" -b -e "$PS1_FMT")"
 }
 
 export PROMPT_COMMAND=__set_prompt

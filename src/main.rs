@@ -108,6 +108,12 @@ struct Opt {
     #[structopt(long = "silent")]
     silent_mode: bool,
 
+    /// Escape format characters for bash shell prompts
+    ///
+    /// Without the escapes, BASH prompt has broken line wrapping
+    #[structopt(long = "bash-escapes", short)]
+    bash_escapes: bool,
+
     /// Path to the git repository represented by the format
     #[structopt(long, short, parse(from_os_str), default_value = ".")]
     path: PathBuf,
@@ -162,7 +168,14 @@ fn run() -> Result<(), Error> {
             }
         })?;
 
-    println!("{}", glitter(stats, format)?);
+    use std::io::BufWriter;
+    let mut out = BufWriter::with_capacity(128, std::io::stdout());
+
+    glitter(stats, format, true, opt.bash_escapes, &mut out)?;
+
+    out.into_inner()
+        .expect("Unable to complete writing format to output");
+    println!();
 
     Ok(())
 }

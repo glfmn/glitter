@@ -28,7 +28,8 @@ then
     echo "${GREEN} Testing commit\n\n${NC}"
 
     cargo doc --no-deps &&
-    cargo build &&
+    cargo check &&
+    cargo check --benches &&
     cargo test --all &&
     # Capture exit code from tests
     status=$?

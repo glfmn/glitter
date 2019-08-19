@@ -108,16 +108,17 @@
 //! | `#42(`...`)`   | a forest greenish color        |
 //! | `#_;*(`...`)`  | underline bold text            |
 
-extern crate ansi_term;
 extern crate git2;
 #[macro_use]
 extern crate nom;
-
 #[cfg_attr(test, macro_use)]
 #[cfg(test)]
 extern crate proptest;
 
+use std::io;
+
 pub mod ast;
+mod color;
 pub mod git;
 pub mod interpreter;
 pub mod parser;
@@ -142,8 +143,14 @@ impl From<parser::ParseError> for Error {
     }
 }
 
-pub fn glitter(stats: Stats, format: String) -> Result<String, Error> {
+pub fn glitter<W: io::Write>(
+    stats: Stats,
+    format: String,
+    allow_color: bool,
+    bash_prompt: bool,
+    w: &mut W,
+) -> Result<(), Error> {
     let tree = parser::parse(format)?;
-    let evaled = interpreter::Interpreter::new(stats).evaluate(&tree)?;
-    Ok(evaled)
+    interpreter::Interpreter::new(stats, allow_color, bash_prompt).evaluate(&tree, w)?;
+    Ok(())
 }
