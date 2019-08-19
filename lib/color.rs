@@ -183,26 +183,3 @@ impl Difference {
         })
     }
 }
-
-#[derive(Debug, PartialEq, Clone)]
-pub(crate) struct StyledString {
-    style: StyleContext,
-    result: String,
-}
-
-impl<'a> StyledString {
-    pub fn new(style: StyleContext, result: String) -> StyledString {
-        StyledString { style, result }
-    }
-
-    #[inline(always)]
-    pub fn is_empty(&self) -> bool {
-        self.result.is_empty()
-    }
-}
-
-impl Into<(StyleContext, String)> for StyledString {
-    fn into(self) -> (StyleContext, String) {
-        (self.style, self.result)
-    }
-}

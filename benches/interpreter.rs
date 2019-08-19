@@ -55,11 +55,29 @@ fn empty_stats(c: &mut Criterion) {
             },
         ]),
     }]);
-    let interpreter = Interpreter::new(empty, true, true);
+    let mut interpreter = Interpreter::new(empty, true, true);
 
     c.bench_function("default stats \"\\[\\M\\A\\R\\D\\]\"", move |b| {
-        let mut out = Vec::new();
-        b.iter(|| interpreter.evaluate(&expression, &mut out))
+        let mut out = Vec::with_capacity(128);
+        b.iter(|| {
+            out.clear();
+            let _ = interpreter.evaluate(&expression, &mut out);
+        })
+    });
+}
+
+fn real_world(c: &mut Criterion) {
+    use glitter_lang::parser::parse;
+
+    let tree = parse(r"\[#g;*(\b)#r(\B(#~('..')))#w(\(#~;*(\+('↑')\-('↓')))\<#g(\M\A\R\D)#r(\m\a\u\d)>\{#m;*;_(\h('@'))})]' '#b;*('\w')'\n '").expect("failed to parse example");
+
+    let mut i = Interpreter::new(stats(), true, true);
+    c.bench_function("Real world \"$GIT_FMT\" example", move |b| {
+        let mut out = Vec::with_capacity(256);
+        b.iter(|| {
+            out.clear();
+            let _ = i.evaluate(&tree, &mut out);
+        })
     });
 }
 
@@ -67,76 +85,48 @@ fn nested_named(c: &mut Criterion) {
     use Expression::*;
     use Name::*;
 
-    fn depth_1(b: &mut Bencher, s: &Stats) {
-        let interpreter = Interpreter::new(s.clone(), true, true);
-        let e = Tree(vec![Named {
-            name: Modified,
-            sub: Tree::new(),
-        }]);
-        b.iter(|| {
-            let mut out = Vec::new();
-            interpreter.evaluate(&e, &mut out);
-        });
+    /// Recursively create tree structure for tests
+    macro_rules! tree {
+        ($expr:tt, $($tail:tt),*) => {{
+            Tree(vec![Named {
+                name: $expr,
+                sub: tree![$($tail),*]
+            }])
+        }};
+        ($expr:tt) => {{
+            Tree(vec![Named {
+                name: $expr,
+                sub: Tree::default(),
+            }])
+        }};
     }
-    fn depth_2(b: &mut Bencher, s: &Stats) {
-        let interpreter = Interpreter::new(s.clone(), true, true);
-        let e = Tree(vec![Named {
-            name: Modified,
-            sub: Tree(vec![Named {
-                name: Added,
-                sub: Tree::new(),
-            }]),
-        }]);
-        b.iter(|| {
-            let mut out = Vec::new();
-            interpreter.evaluate(&e, &mut out);
-        });
-    }
-    fn depth_3(b: &mut Bencher, s: &Stats) {
-        let interpreter = Interpreter::new(s.clone(), true, true);
-        let e = Tree(vec![Named {
-            name: Modified,
-            sub: Tree(vec![Named {
-                name: Added,
-                sub: Tree(vec![Named {
-                    name: Renamed,
-                    sub: Tree::new(),
-                }]),
-            }]),
-        }]);
-        b.iter(|| {
-            let mut out = Vec::new();
-            interpreter.evaluate(&e, &mut out);
-        });
-    }
-    fn depth_4(b: &mut Bencher, s: &Stats) {
-        let interpreter = Interpreter::new(s.clone(), true, true);
-        let e = Tree(vec![Named {
-            name: Modified,
-            sub: Tree(vec![Named {
-                name: Added,
-                sub: Tree(vec![Named {
-                    name: Renamed,
-                    sub: Tree(vec![Named {
-                        name: Deleted,
-                        sub: Tree::new(),
-                    }]),
-                }]),
-            }]),
-        }]);
-        b.iter(|| {
-            let mut out = Vec::new();
-            interpreter.evaluate(&e, &mut out);
-        });
+
+    macro_rules! depth {
+        ($($tail:tt),+) => {{
+            |b: &mut Bencher, s: &Stats| {
+                let mut interpreter = Interpreter::new(s.clone(), true, true);
+                // Use passed tokens as the Name type in each subtree
+                let e = tree![$($tail),+];
+                let mut out = Vec::with_capacity(128);
+                b.iter(|| {
+                    out.clear();
+                    let _  = interpreter.evaluate(&e, &mut out);
+                });
+            }
+        }};
     }
 
     c.bench_functions(
         "nested named",
         vec![
-            Fun::new("depth 1", depth_1),
-            Fun::new("depth 2", depth_2),
-            Fun::new("depth 3", depth_3),
-            Fun::new("depth 4", depth_4),
+            Fun::new("depth 1", depth![Modified]),
+            Fun::new("depth 2", depth![Modified, Added]),
+            Fun::new("depth 3", depth![Modified, Added, Untracked]),
+            Fun::new("depth 4", depth![Modified, Added, Untracked, Deleted]),
+            Fun::new(
+                "depth 5",
+                depth![Modified, Added, Untracked, Deleted, Branch],
+            ),
         ],
         stats(),
     );
@@ -158,10 +148,11 @@ fn tree_length(c: &mut Criterion) {
                     .collect(),
                 );
 
-                let i = Interpreter::new(s.clone(), true, true);
+                let mut i = Interpreter::new(s.clone(), true, true);
+                let mut out = Vec::with_capacity(128);
                 b.iter(|| {
-                    let mut out = Vec::new();
-                    i.evaluate(&e, &mut out);
+                    out.clear();
+                    let _ = i.evaluate(&e, &mut out);
                 });
             }
         };
@@ -191,9 +182,12 @@ fn style_length(c: &mut Criterion) {
                     style: std::iter::repeat(Bold).take($n).collect(),
                     sub: Tree(Vec::new()),
                 }]);
-                let i = Interpreter::new(s.clone(), true, true);
-                let mut out = Vec::new();
-                b.iter(|| i.evaluate(&styles, &mut out))
+                let mut i = Interpreter::new(s.clone(), true, true);
+                let mut out = Vec::with_capacity(128);
+                b.iter(|| {
+                    out.clear();
+                    let _ = i.evaluate(&styles, &mut out);
+                })
             }
         };
     }
@@ -213,6 +207,7 @@ fn style_length(c: &mut Criterion) {
 
 criterion_group!(
     interpreter,
+    real_world,
     empty_stats,
     nested_named,
     tree_length,

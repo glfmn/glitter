@@ -168,14 +168,13 @@ fn run() -> Result<(), Error> {
             }
         })?;
 
-    glitter(
-        stats,
-        format,
-        true,
-        opt.bash_escapes,
-        &mut std::io::stdout(),
-    )?;
+    use std::io::BufWriter;
+    let mut out = BufWriter::with_capacity(128, std::io::stdout());
 
+    glitter(stats, format, true, opt.bash_escapes, &mut out)?;
+
+    out.into_inner()
+        .expect("Unable to complete writing format to output");
     println!();
 
     Ok(())
