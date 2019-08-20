@@ -40,3 +40,16 @@ debug = true
 
 [profile.bench]
 debug = true
+
+[package.metadata.deb]
+maintainer = "Gwen Lofman <launchpad@glfmn.io>"
+license-file = ["LICENSE"]
+extended-description = """\
+A git utility for creating informative prompts; it can embedd git status
+information in arbitrary formats with ease.  """
+depends = "$auto"
+section = "git"
+priority = "optional"
+assets = [
+    ["target/release/glit", "usr/bin/", "755"],
+]
