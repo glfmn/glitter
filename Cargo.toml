@@ -24,9 +24,6 @@ git2 = "0.9"
 nom = "^3.2"
 human-panic = "1.0.1"
 
-[patch.crates-io]
-ansi_term = { git = "https://github.com/glfmn/rust-ansi-term", branch = "escape_sequence" }
-
 [dev-dependencies]
 proptest = "0.8.6"
 criterion = "0.2"
