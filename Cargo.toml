@@ -45,7 +45,7 @@ debug = true
 maintainer = "Gwen Lofman <launchpad@glfmn.io>"
 license-file = ["LICENSE"]
 extended-description = """\
-A git utility for creating informative prompts; it can embedd git status
+A git utility for creating informative prompts; it can embed git status
 information in arbitrary formats with ease.  """
 depends = "$auto"
 section = "git"
