@@ -24,6 +24,9 @@ git2 = "0.9"
 nom = "^3.2"
 human-panic = "1.0.1"
 
+[target.'cfg(windows)'.dependencies]
+yansi = "0.5"
+
 [dev-dependencies]
 proptest = "0.8.6"
 criterion = "0.2"

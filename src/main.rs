@@ -83,6 +83,10 @@ extern crate structopt;
 #[macro_use]
 extern crate human_panic;
 
+// Currently, only used to enable windows colors
+#[cfg(windows)]
+extern crate yansi;
+
 use git2::Repository;
 use std::fmt::{self, Display};
 use std::path::PathBuf;
@@ -154,6 +158,15 @@ impl Display for Error {
 }
 
 fn run() -> Result<(), Error> {
+    #[allow(unused)]
+	let mut color = true;
+
+	#[cfg(windows)]
+    {
+        use yansi::Paint;
+        color = Paint::enable_windows_ascii();
+    }
+
     let opt = Opt::from_args();
 
     // Get a format and stats from the git repository or exit early with an error
@@ -171,7 +184,7 @@ fn run() -> Result<(), Error> {
     use std::io::BufWriter;
     let mut out = BufWriter::with_capacity(128, std::io::stdout());
 
-    glitter(stats, format, true, opt.bash_escapes, &mut out)?;
+    glitter(stats, format, color, opt.bash_escapes, &mut out)?;
 
     out.into_inner()
         .expect("Unable to complete writing format to output");
