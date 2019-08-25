@@ -159,9 +159,9 @@ impl Display for Error {
 
 fn run() -> Result<(), Error> {
     #[allow(unused)]
-	let mut color = true;
+    let mut color = true;
 
-	#[cfg(windows)]
+    #[cfg(windows)]
     {
         use yansi::Paint;
         color = Paint::enable_windows_ascii();
