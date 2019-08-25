@@ -13,7 +13,7 @@ Glitter is a cross-platform command-line tool and format language for making inf
 - Parse and Interpret the provided format
 - Output your format with the requested information to `stdout`
 
-Glitter is a binary tool which affords blazing speed, offers maximum flexibility, and painless installation.  This makes Glitter an ideal alternative to alternative to tools like [`bash-git-prompt`](https://github.com/magicmonty/bash-git-prompt), [``zsh-git-prompt`](https://github.com/olivierverdier/zsh-git-prompt), and [`pos-git`](https://github.com/dahlbyk/posh-git).
+Glitter is a binary tool which affords blazing speed, offers maximum flexibility, and painless installation.  This makes Glitter an ideal alternative to alternative to tools like [`bash-git-prompt`](https://github.com/magicmonty/bash-git-prompt), [`zsh-git-prompt`](https://github.com/olivierverdier/zsh-git-prompt), and [`posh-git`](https://github.com/dahlbyk/posh-git).
 
 Glitter has been tested on Windows, Mac, and Ubuntu; it works in Powershell, zsh, bash, and theoretically any shell environment that supports a prompt command.
 
@@ -63,7 +63,7 @@ export PROMPT_COMMAND=__set_prompt
 
 Add the following snippet to your `$PROFILE`:
 
-```ps
+```ps1
 # Format to use inside of git repositories
 $GIT_FMT="#y(\[#c;*(\b)#c(\B(#~(' ')))#w(\(#~;*(\+\-))\[#g(\M\A\R\D)#r(\m\a\u\d)]\{#m;*;_(\h('@'))})])"
 

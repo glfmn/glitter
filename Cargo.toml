@@ -1,6 +1,6 @@
 [package]
 name = "glit"
-version = "0.2.0"
+version = "0.2.1"
 authors = ["Gwen Lofman <Gwen@Lofman.io>"]
 description = "A utility for pretty-printing git stats"
 license = "MPL-2.0"
@@ -46,7 +46,7 @@ maintainer = "Gwen Lofman <launchpad@glfmn.io>"
 license-file = ["LICENSE"]
 extended-description = """\
 A git utility for creating informative prompts; it can embed git status
-information in arbitrary formats with ease.  """
+information in arbitrary formats with ease on any platform.  """
 depends = "$auto"
 section = "git"
 priority = "optional"
