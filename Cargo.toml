@@ -27,9 +27,14 @@ human-panic = "1.0.1"
 [dev-dependencies]
 proptest = "0.8.6"
 criterion = "0.2"
+tempfile = "3.1"
 
 [[bench]]
 name = "interpreter"
+harness = false
+
+[[bench]]
+name = "git_status"
 harness = false
 
 [profile.release]
