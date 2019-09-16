@@ -43,7 +43,9 @@ impl Stats {
 
         let mut opts = git2::StatusOptions::new();
 
-        opts.include_untracked(true).recurse_untracked_dirs(true);
+        opts.include_untracked(true)
+            .recurse_untracked_dirs(true)
+            .renames_head_to_index(true);
 
         if let Ok(statuses) = repo.statuses(Some(&mut opts)) {
             for status in statuses.iter() {
