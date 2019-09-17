@@ -212,7 +212,6 @@ impl Interpreter {
             DeletedStaged => self.optional_prefix(w, sub, self.stats.deleted_staged, "D", ctx),
             Renamed => self.optional_prefix(w, sub, self.stats.renamed, "R", ctx),
             Stashed => self.optional_prefix(w, sub, self.stats.stashes, "H", ctx),
-            Backslash => self.interpret_literal(w, sub, "\\", ctx),
             Quote => self.interpret_literal(w, sub, "'", ctx),
         }
     }
@@ -287,8 +286,6 @@ mod test {
         #[test]
         fn empty_stats_empty_result(
             name in ast::arb_name()
-                .prop_filter("Backslash is never empty".to_owned(),
-                             |n| *n != Name::Backslash)
                 .prop_filter("Quote is never empty".to_owned(),
                              |n| *n != Name::Quote)
         ) {
@@ -315,8 +312,6 @@ mod test {
         #[test]
         fn empty_group_empty_result(
             name in ast::arb_name()
-                .prop_filter("Backslash is never empty".to_owned(),
-                             |n| *n != Name::Backslash)
                 .prop_filter("Quote is never empty".to_owned(),
                              |n| *n != Name::Quote)
         ) {
@@ -351,8 +346,6 @@ mod test {
         #[test]
         fn empty_format_empty_result(
             name in ast::arb_name()
-                .prop_filter("Backslash is never empty".to_owned(),
-                             |n| *n != Name::Backslash)
                 .prop_filter("Quote is never empty".to_owned(),
                              |n| *n != Name::Quote),
             style in vec(ast::arb_style(), 1..10),

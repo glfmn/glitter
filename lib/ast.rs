@@ -9,7 +9,6 @@ use std::fmt;
 /// Defines the "standard library" of named expressions which represent git stats
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
 pub enum Name {
-    Backslash,
     Branch,
     Remote,
     Ahead,
@@ -42,8 +41,7 @@ impl fmt::Display for Name {
             Name::Deleted => "d",
             Name::DeletedStaged => "D",
             Name::Renamed => "R",
-            Name::Backslash => "\\",
-            Name::Quote => "\'",
+            Name::Quote => "\\\'",
         };
         write!(f, "{}", literal)
     }
@@ -54,7 +52,6 @@ pub fn arb_name() -> impl Strategy<Value = Name> {
     use self::Name::*;
 
     prop_oneof![
-        Just(Backslash),
         Just(Branch),
         Just(Remote),
         Just(Ahead),
@@ -239,7 +236,7 @@ impl fmt::Display for Expression {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Expression::Named { ref name, ref sub } => {
-                write!(f, "\\{}", name)?;
+                write!(f, "{}", name)?;
                 if sub.0.is_empty() {
                     Ok(())
                 } else {
@@ -251,7 +248,12 @@ impl fmt::Display for Expression {
                 ref l,
                 ref r,
                 ref sub,
-            } => write!(f, "\\{}{}{}", l, sub, r),
+            } if *l == "(".to_string() => write!(f, "\\({}{}", sub, r),
+            Expression::Group {
+                ref l,
+                ref r,
+                ref sub,
+            } => write!(f, "{}{}{}", l, sub, r),
             Expression::Format { ref style, ref sub } => {
                 write!(f, "#")?;
                 if let Some((first, ss)) = style.split_first() {
