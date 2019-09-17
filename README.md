@@ -88,6 +88,21 @@ precmd() { print -rP "$(glit "$GIT_FMT" -b -e "$PS1_FMT")" }
 PROMPT="%# "
 ```
 
+### fish
+
+Replace your `~/.config/fish/functions/fish_prompt.fish` file with:
+
+```fish
+function fish_prompt
+    # format used in git repositories
+    set git "#y('"(prompt_pwd)"')' '\[#c(#*(\b)\B(#~('@'\{\+\-})))]' '\{\{#g(\M\A\R\D)#r(\m\a\u\d)}}'\n➟ '"
+    # fallback format used outside of git repositories
+    set ps1 "#y('"(prompt_pwd)" ')'➟ '"
+
+    echo -e (glit $git -e $ps1)
+end
+```
+
 # Customizing your format
 
 Glitter provides a flexible expression language which is easy to use and easy to prototype with:
