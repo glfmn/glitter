@@ -4,7 +4,7 @@
 extern crate criterion;
 extern crate glitter_lang;
 
-use glitter_lang::ast::{Expression, Name, Style, Tree};
+use glitter_lang::ast::{Delimiter, Expression, Name, Style, Tree};
 use glitter_lang::git::Stats;
 use glitter_lang::interpreter::Interpreter;
 
@@ -34,8 +34,7 @@ fn empty_stats(c: &mut Criterion) {
 
     let empty: Stats = Default::default();
     let expression = Tree(vec![Group {
-        l: "[".to_string(),
-        r: "]".to_string(),
+        d: Delimiter::Square,
         sub: Tree(vec![
             Named {
                 name: Modified,
@@ -57,7 +56,7 @@ fn empty_stats(c: &mut Criterion) {
     }]);
     let mut interpreter = Interpreter::new(empty, true, true);
 
-    c.bench_function("default stats \"\\[\\M\\A\\R\\D\\]\"", move |b| {
+    c.bench_function("default stats \"[MARD]\"", move |b| {
         let mut out = Vec::with_capacity(128);
         b.iter(|| {
             out.clear();
@@ -69,7 +68,7 @@ fn empty_stats(c: &mut Criterion) {
 fn real_world(c: &mut Criterion) {
     use glitter_lang::parser::parse;
 
-    let tree = parse(r"\[#g;*(\b)#r(\B(#~('..')))#w(\(#~;*(\+('↑')\-('↓')))\<#g(\M\A\R\D)#r(\m\a\u\d)>\{#m;*;_(\h('@'))})]' '#b;*('\w')'\n '").expect("failed to parse example");
+    let tree = parse(r"[#g;*(b)#r(B(#~('..')))#w(\(#~;*(+('↑')-('↓')))<#g(MARD)#r(maud)>{#m;*;_(h('@'))})]' '#b;*('\w')'\n '").expect("failed to parse example");
 
     let mut i = Interpreter::new(stats(), true, true);
     c.bench_function("Real world \"$GIT_FMT\" example", move |b| {

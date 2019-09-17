@@ -176,6 +176,47 @@ pub fn arb_style() -> impl Strategy<Value = Style> {
     ]
 }
 
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub enum Delimiter {
+    /// <>
+    Angle,
+    /// []
+    Square,
+    /// {}
+    Curly,
+    /// \()
+    Parens,
+}
+
+impl Delimiter {
+    pub fn left(&self) -> &'static str {
+        use Delimiter::*;
+        match self {
+            Angle => "<",
+            Square => "[",
+            Curly => "{",
+            Parens => "\\(",
+        }
+    }
+
+    pub fn right(&self) -> &'static str {
+        use Delimiter::*;
+        match self {
+            Angle => ">",
+            Square => "]",
+            Curly => "}",
+            Parens => ")",
+        }
+    }
+}
+
+#[cfg(test)]
+pub fn arb_delimiter() -> impl Strategy<Value = Delimiter> {
+    use self::Delimiter::*;
+
+    prop_oneof![Just(Angle), Just(Square), Just(Curly), Just(Parens)]
+}
+
 /// The types of possible expressions which form an expression tree
 ///
 /// The gist format has three types of valid expressions:
@@ -221,10 +262,8 @@ pub enum Expression {
     Format { style: Vec<Style>, sub: Tree },
     /// A group of sub-expressions which forms an expression tree
     Group {
-        /// Left delimiter
-        l: String,
-        /// Right delimiter
-        r: String,
+        /// Group delimiter type, [], <>, {}, or \()
+        d: Delimiter,
         /// A tree of sub expressions
         sub: Tree,
     },
@@ -244,16 +283,12 @@ impl fmt::Display for Expression {
                     Ok(())
                 }
             }
-            Expression::Group {
-                ref l,
-                ref r,
-                ref sub,
-            } if *l == "(".to_string() => write!(f, "\\({}{}", sub, r),
-            Expression::Group {
-                ref l,
-                ref r,
-                ref sub,
-            } => write!(f, "{}{}{}", l, sub, r),
+            Expression::Group { ref d, ref sub } => match d {
+                Delimiter::Square => write!(f, "[{}]", sub),
+                Delimiter::Angle => write!(f, "<{}>", sub),
+                Delimiter::Parens => write!(f, "\\({})", sub),
+                Delimiter::Curly => write!(f, "{{{}}}", sub),
+            },
             Expression::Format { ref style, ref sub } => {
                 write!(f, "#")?;
                 if let Some((first, ss)) = style.split_first() {
@@ -289,31 +324,15 @@ pub fn arb_expression() -> impl Strategy<Value = Expression> {
         prop_oneof![
             (arb_name(), vec(inner.clone(), 0..10)).prop_map(|(name, sub)| Named {
                 name: name,
-                sub: Tree(sub)
+                sub: Tree(sub),
             }),
             (vec(arb_style(), 1..10), vec(inner.clone(), 0..10)).prop_map(|(style, sub)| Format {
                 style: style,
-                sub: Tree(sub)
+                sub: Tree(sub),
             }),
-            vec(inner.clone(), 0..10).prop_map(|sub| Group {
-                l: "{".to_string(),
-                r: "}".to_string(),
-                sub: Tree(sub)
-            }),
-            vec(inner.clone(), 0..10).prop_map(|sub| Group {
-                l: "(".to_string(),
-                r: ")".to_string(),
-                sub: Tree(sub)
-            }),
-            vec(inner.clone(), 0..10).prop_map(|sub| Group {
-                l: "<".to_string(),
-                r: ">".to_string(),
-                sub: Tree(sub)
-            }),
-            vec(inner.clone(), 0..10).prop_map(|sub| Group {
-                l: "[".to_string(),
-                r: "]".to_string(),
-                sub: Tree(sub)
+            (arb_delimiter(), vec(inner.clone(), 0..10)).prop_map(|(delimiter, sub)| Group {
+                d: delimiter,
+                sub: Tree(sub),
             }),
         ]
     })

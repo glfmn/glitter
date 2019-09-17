@@ -1,6 +1,6 @@
 //! Format parser, determines the syntax for pretty formats
 
-use crate::ast::{Expression, Name, Style, Tree};
+use crate::ast::{Delimiter, Expression, Name, Style, Tree};
 use nom::{digit, IResult};
 use std::str::{self, Utf8Error};
 
@@ -345,30 +345,26 @@ fn group_expression(input: &[u8]) -> IResult<&[u8], Expression> {
     alt!(input,
         delimited!(tag!("\\("), expression_tree ,tag!(")")) => {
             |sub: Tree| Expression::Group {
-                l: "(".to_string(),
-                r: ")".to_string(),
-                sub: sub
+                d: Delimiter::Parens,
+                sub: sub,
             }
         } |
         delimited!(tag!("{"), expression_tree ,tag!("}")) => {
             |sub: Tree| Expression::Group {
-                l: "{".to_string(),
-                r: "}".to_string(),
-                sub: sub
+                d: Delimiter::Curly,
+                sub: sub,
             }
         } |
         delimited!(tag!("<"), expression_tree ,tag!(">")) => {
             |sub: Tree| Expression::Group {
-                l: "<".to_string(),
-                r: ">".to_string(),
-                sub: sub
+                d: Delimiter::Angle,
+                sub: sub,
             }
         } |
         delimited!(tag!("["), expression_tree ,tag!("]")) => {
             |sub: Tree| Expression::Group {
-                l: "[".to_string(),
-                r: "]".to_string(),
-                sub: sub
+                d: Delimiter::Square,
+                sub: sub,
             }
         }
     )
@@ -422,8 +418,7 @@ mod test {
         let expect = Tree(vec![
             Expression::Literal("日本語は綺麗なのです".to_string()),
             Expression::Group {
-                l: "[".to_string(),
-                r: "]".to_string(),
+                d: Delimiter::Square,
                 sub: Tree(vec![
                     Expression::Literal("試験".to_string()),
                     Expression::Format {
@@ -553,23 +548,19 @@ mod test {
         let test = b"{}\\()[]<>";
         let expect = Tree(vec![
             Expression::Group {
-                l: "{".to_string(),
-                r: "}".to_string(),
+                d: Delimiter::Curly,
                 sub: Tree::new(),
             },
             Expression::Group {
-                l: "(".to_string(),
-                r: ")".to_string(),
+                d: Delimiter::Parens,
                 sub: Tree::new(),
             },
             Expression::Group {
-                l: "[".to_string(),
-                r: "]".to_string(),
+                d: Delimiter::Square,
                 sub: Tree::new(),
             },
             Expression::Group {
-                l: "<".to_string(),
-                r: ">".to_string(),
+                d: Delimiter::Angle,
                 sub: Tree::new(),
             },
         ]);

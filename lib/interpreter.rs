@@ -34,6 +34,7 @@ pub struct Interpreter {
 enum WriteCommand {
     WriteContext(StyleContext),
     WriteStr(&'static str),
+    #[allow(unused)] // unused variant left in case of extension
     WriteString(String),
 }
 
@@ -107,17 +108,12 @@ impl Interpreter {
 
         match exp {
             Named { ref name, ref sub } => self.interpret_named(w, *name, sub, ctx),
-            Group {
-                ref l,
-                ref r,
-                ref sub,
-            } => {
+            Group { ref d, ref sub } => {
                 if sub.0.len() > 0 {
                     let len = self.command_queue.len();
-                    self.command_queue
-                        .push(WriteCommand::WriteString(l.to_string()));
+                    self.command_queue.push(WriteCommand::WriteStr(d.left()));
                     if let (_, true) = self.interpret_tree(w, &sub, ctx)? {
-                        write!(w, "{}", r)?;
+                        write!(w, "{}", d.right())?;
                         Ok((ctx, true))
                     } else {
                         while self.command_queue.len() > len {
@@ -277,7 +273,7 @@ mod test {
     use super::*;
     use crate::git::Stats;
     use ast;
-    use ast::{Expression, Name, Tree};
+    use ast::{Delimiter, Expression, Name, Tree};
     use proptest::arbitrary::any;
     use proptest::collection::vec;
     use proptest::strategy::Strategy;
@@ -318,8 +314,7 @@ mod test {
             let stats = Stats::default();
             let interior = Expression::Named { name, sub: Tree::new(), };
             let exp = Expression::Group {
-                l: "{".to_string(),
-                r: "}".to_string(),
+                d: Delimiter::Curly,
                 sub: Tree(vec![interior]),
             };
 
