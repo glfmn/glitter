@@ -1,283 +1,16 @@
 //! Format parser, determines the syntax for pretty formats
 
-use crate::ast::{Delimiter, Expression, Name, Style, Tree};
-use nom::{digit, IResult};
+use crate::ast::{Color::*, Delimiter, Expression, Name, Style, Tree};
 use std::str::{self, Utf8Error};
 
-pub type ParseError = nom::IError;
+use nom::IResult;
 
-named! {
-    unstaged<&[u8], Name>,
-    do_parse!(tag!("m") >> (Name::Unstaged))
-}
-
-named! {
-    modified<&[u8], Name>,
-    do_parse!(tag!("M") >> (Name::Modified))
-}
-
-named! {
-    untracked<&[u8], Name>,
-    do_parse!(tag!("a") >> (Name::Untracked))
-}
-
-named! {
-    added<&[u8], Name>,
-    do_parse!(tag!("A") >> (Name::Added))
-}
-
-named! {
-    conflict<&[u8], Name>,
-    do_parse!(tag!("u") >> (Name::Conflict))
-}
-
-named! {
-    ahead<&[u8], Name>,
-    do_parse!(tag!("+") >> (Name::Ahead))
-}
-
-named! { behind<&[u8], Name>,
-    do_parse!(tag!("-") >> (Name::Behind))
-}
-
-named! {
-    deleted<&[u8], Name>,
-    do_parse!(tag!("d") >> (Name::Deleted))
-}
-
-named! {
-    deleted_staged<&[u8], Name>,
-    do_parse!(tag!("D") >> (Name::DeletedStaged))
-}
-
-named! {
-    renamed<&[u8], Name>,
-    do_parse!(tag!("R") >> (Name::Renamed))
-}
-
-named! {
-    branch<&[u8], Name>,
-    do_parse!(tag!("b") >> (Name::Branch))
-}
-
-named! {
-    remote<&[u8], Name>,
-    do_parse!(tag!("B") >> (Name::Remote))
-}
-
-named! {
-    quote<&[u8], Name>,
-    do_parse!(tag!("\\\'") >> (Name::Quote))
-}
-
-named! {
-    stashed<&[u8], Name>,
-    do_parse!(tag!("h") >> (Name::Stashed))
-}
-
-named! {
-    expression_name<&[u8], Name>,
-    alt!(
-        unstaged |
-        modified |
-        untracked |
-        added |
-        ahead |
-        behind |
-        conflict |
-        deleted |
-        deleted_staged |
-        renamed |
-        branch |
-        remote |
-        quote |
-        stashed
-    )
-}
-
-use crate::ast::Color::*;
-
-named! {
-    reset<&[u8], Style>,
-    do_parse!(tag!("~") >> (Style::Reset))
-}
-
-named! {
-    bold<&[u8], Style>,
-    do_parse!(tag!("*") >> (Style::Bold))
-}
-
-named! {
-    underline<&[u8], Style>,
-    do_parse!(tag!("_") >> (Style::Underline))
-}
-
-named! {
-    italic<&[u8], Style>,
-    do_parse!(tag!("i") >> (Style::Italic))
-}
-
-named! {
-    fg_red<&[u8], Style>,
-    do_parse!(tag!("r") >> (Style::Fg(Red)))
-}
-
-named! {
-    bg_red<&[u8], Style>,
-    do_parse!(tag!("R") >> (Style::Bg(Red)))
-}
-
-named! {
-    fg_green<&[u8], Style>,
-    do_parse!(tag!("g") >> (Style::Fg(Green)))
-}
-
-named! {
-    bg_green<&[u8], Style>,
-    do_parse!(tag!("G") >> (Style::Bg(Green)))
-}
-
-named! {
-    fg_yellow<&[u8], Style>,
-    do_parse!(tag!("y") >> (Style::Fg(Yellow)))
-}
-
-named! {
-    bg_yellow<&[u8], Style>,
-    do_parse!(tag!("Y") >> (Style::Bg(Yellow)))
-}
-
-named! {
-    fg_blue<&[u8], Style>,
-    do_parse!(tag!("b") >> (Style::Fg(Blue)))
-}
-
-named! {
-    bg_blue<&[u8], Style>,
-    do_parse!(tag!("B") >> (Style::Bg(Blue)))
-}
-
-named! {
-    fg_magenta<&[u8], Style>,
-    do_parse!(tag!("m") >> (Style::Fg(Magenta)))
-}
-
-named! {
-    bg_magenta<&[u8], Style>,
-    do_parse!(tag!("M") >> (Style::Bg(Magenta)))
-}
-
-named! {
-    fg_cyan<&[u8], Style>,
-    do_parse!(tag!("c") >> (Style::Fg(Cyan)))
-}
-
-named! {
-    bg_cyan<&[u8], Style>,
-    do_parse!(tag!("C") >> (Style::Bg(Cyan)))
-}
-
-named! {
-    fg_white<&[u8], Style>,
-    do_parse!(tag!("w") >> (Style::Fg(White)))
-}
-
-named! {
-    bg_white<&[u8], Style>,
-    do_parse!(tag!("W") >> (Style::Bg(White)))
-}
-
-named! {
-    fg_black<&[u8], Style>,
-    do_parse!(tag!("k") >> (Style::Fg(Black)))
-}
-
-named! {
-    bg_black<&[u8], Style>,
-    do_parse!(tag!("K") >> (Style::Bg(Black)))
-}
+pub type ParseError = ();
 
 fn u8_from_bytes(input: &[u8]) -> u8 {
     let raw = str::from_utf8(input).expect("invalid UTF-8");
     raw.parse()
         .expect("attempted to parse a value that was not a number")
-}
-
-named! {
-    ansi_num <&[u8], u8>,
-    map!(digit, u8_from_bytes)
-}
-
-named! {
-    fg_rgb<&[u8], Style>,
-    do_parse!(
-        tag!("[") >>
-        r: ansi_num >>
-        tag!(",") >>
-        g: ansi_num >>
-        tag!(",") >>
-        b: ansi_num >>
-        tag!("]") >>
-        (Style::Fg(RGB(r,g,b)))
-    )
-}
-
-named! {
-    bg_rgb<&[u8], Style>,
-    do_parse!(
-        tag!("{") >>
-        r: ansi_num >>
-        tag!(",") >>
-        g: ansi_num >>
-        tag!(",") >>
-        b: ansi_num >>
-        tag!("}") >>
-        (Style::Bg(RGB(r,g,b)))
-    )
-}
-
-named! {
-    style<&[u8], Style>,
-    alt!(
-        reset |
-        bold |
-        underline |
-        italic |
-        fg_red |
-        bg_red |
-        fg_green |
-        bg_green |
-        fg_yellow |
-        bg_yellow |
-        fg_blue |
-        bg_blue |
-        fg_magenta |
-        bg_magenta |
-        fg_cyan |
-        bg_cyan |
-        fg_white |
-        bg_white |
-        fg_black |
-        bg_black |
-        fg_rgb |
-        bg_rgb |
-        do_parse!(n: ansi_num >> (Style::Number(n)))
-    )
-}
-
-named! {
-    styles<&[u8], Vec<Style>>,
-    separated_list!(tag!(";"), style)
-}
-
-fn format_expression(input: &[u8]) -> IResult<&[u8], Expression> {
-    do_parse!(
-        input,
-        tag!("#")
-            >> s: styles
-            >> sub: delimited!(tag!("("), expression_tree, tag!(")"))
-            >> (Expression::Format { style: s, sub: sub })
-    )
 }
 
 /// Take string contents with valid escapes
@@ -286,8 +19,8 @@ fn format_expression(input: &[u8]) -> IResult<&[u8], Expression> {
 fn string_contents(input: &[u8]) -> IResult<&[u8], Vec<u8>> {
     let (i1, c1) = try_parse!(input, take!(1));
     match c1 {
-        b"\'" => IResult::Done(input, vec![]),
-        c => string_contents(i1).map(|done| concat_slice_vec(c, done)),
+        b"\'" => IResult::Ok((input, vec![])),
+        c => string_contents(i1).map(|(i2, done)| (i2, concat_slice_vec(c, done))),
     }
 }
 
@@ -308,82 +41,82 @@ fn convert_vec_utf8(v: Vec<u8>) -> Result<String, Utf8Error> {
     str::from_utf8(slice).map(|s| s.to_owned())
 }
 
-// Parse a string from slice
-//
-// https://github.com/Rydgel/monkey-rust/blob/master/lib/lexer/mod.rs
-named! {
-    string<String>,
-    delimited!(
-        tag!("\'"),
-        map_res!(string_contents, convert_vec_utf8),
-        tag!("\'")
-    )
+fn sub_tree(input: &[u8]) -> IResult<&[u8], Tree> {
+    use nom::bytes::complete::tag;
+    use nom::combinator::complete;
+    use nom::sequence::delimited;
+    complete(delimited(tag(b"("), expression_tree, tag(b")")))(input)
 }
 
-fn literal(input: &[u8]) -> IResult<&[u8], Expression> {
-    do_parse!(input, s: string >> (Expression::Literal(s)))
+pub fn named_expression(input: &[u8]) -> IResult<&[u8], Expression> {
+    use nom::branch::alt;
+    use nom::bytes::complete::tag;
+    use nom::combinator::{map, opt};
+
+    // create sub-parsers for each type of name, this defines what
+    // literal values are translated to what names; must match the
+    // fmt::Display implementation
+    use Name::*;
+    let stashed = map(tag(b"h"), |_| Stashed);
+    let branch = map(tag(b"b"), |_| Branch);
+    let remote = map(tag(b"B"), |_| Remote);
+    let ahead = map(tag(b"+"), |_| Ahead);
+    let behind = map(tag(b"-"), |_| Behind);
+    let conflict = map(tag(b"u"), |_| Conflict);
+    let added = map(tag(b"A"), |_| Added);
+    let untracked = map(tag(b"a"), |_| Untracked);
+    let modified = map(tag(b"M"), |_| Modified);
+    let unstaged = map(tag(b"m"), |_| Unstaged);
+    let deleted = map(tag(b"d"), |_| Deleted);
+    let deleted_staged = map(tag(b"D"), |_| DeletedStaged);
+    let renamed = map(tag(b"R"), |_| Renamed);
+    let quote = map(tag(b"\\\'"), |_| Quote);
+
+    // Combine sub-parsers for each name value to get a sum total
+    let name = alt((
+        stashed,
+        branch,
+        remote,
+        ahead,
+        behind,
+        conflict,
+        added,
+        untracked,
+        modified,
+        unstaged,
+        deleted,
+        deleted_staged,
+        renamed,
+        quote,
+    ));
+
+    // Optional argument sub_tree
+    let prefix = opt(sub_tree);
+
+    // First, read name from input and then read the arguments.
+    name(input).and_then(|(input, name)| {
+        map(prefix, |args| Expression::Named {
+            name,
+            sub: args.unwrap_or_else(|| Tree::new()),
+        })(input)
+    })
 }
 
-/// Parse a valid named expression
-fn named_expression(input: &[u8]) -> IResult<&[u8], Expression> {
-    do_parse!(
-        input,
-        n: expression_name
-            >> a: opt!(complete!(delimited!(tag!("("), expression_tree, tag!(")"))))
-            >> (match a {
-                Some(a) => Expression::Named { name: n, sub: a },
-                None => Expression::Named {
-                    name: n,
-                    sub: Tree::new(),
-                },
-            })
-    )
+pub fn digit(input: &[u8]) -> IResult<&[u8], u8> {
+    unimplemented!()
 }
 
-/// Parse a valid group expression
-fn group_expression(input: &[u8]) -> IResult<&[u8], Expression> {
-    alt!(input,
-        delimited!(tag!("\\("), expression_tree ,tag!(")")) => {
-            |sub: Tree| Expression::Group {
-                d: Delimiter::Parens,
-                sub: sub,
-            }
-        } |
-        delimited!(tag!("{"), expression_tree ,tag!("}")) => {
-            |sub: Tree| Expression::Group {
-                d: Delimiter::Curly,
-                sub: sub,
-            }
-        } |
-        delimited!(tag!("<"), expression_tree ,tag!(">")) => {
-            |sub: Tree| Expression::Group {
-                d: Delimiter::Angle,
-                sub: sub,
-            }
-        } |
-        delimited!(tag!("["), expression_tree ,tag!("]")) => {
-            |sub: Tree| Expression::Group {
-                d: Delimiter::Square,
-                sub: sub,
-            }
-        }
-    )
+pub fn format_expression(input: &[u8]) -> IResult<&[u8], Expression> {
+    unimplemented!()
 }
 
-/// Parse a tree of expressions
 pub fn expression_tree(input: &[u8]) -> IResult<&[u8], Tree> {
-    do_parse! {
-        input,
-        sub: many0!(expression) >> (Tree(sub))
-    }
+    unimplemented!()
 }
 
 /// Parse a single expression, expanding nested expressions
 pub fn expression(input: &[u8]) -> IResult<&[u8], Expression> {
-    alt!(
-        input,
-        group_expression | literal | named_expression | format_expression
-    )
+    unimplemented!()
 }
 
 /// Parse a format
@@ -391,7 +124,7 @@ pub fn parse<I>(input: I) -> Result<Tree, ParseError>
 where
     I: AsRef<[u8]>,
 {
-    expression_tree(input.as_ref()).to_full_result()
+    unimplemented!()
 }
 
 #[cfg(test)]
@@ -451,7 +184,7 @@ mod test {
             sub: Tree::new(),
         };
         let parse = match named_expression(test) {
-            IResult::Done(_, exp) => exp,
+            IResult::Ok((_, exp)) => exp,
             fail @ _ => panic!("Failed to parse with result {:?}", fail),
         };
         assert!(parse == expect, "{:?} != {:?}", parse, expect);
@@ -468,7 +201,7 @@ mod test {
             }]),
         };
         let parse = match named_expression(test) {
-            IResult::Done(_, exp) => exp,
+            IResult::Ok((_, exp)) => exp,
             fail @ _ => panic!("Failed to parse with result {:?}", fail),
         };
         assert!(parse == expect, "{:?} != {:?}", parse, expect);
@@ -491,7 +224,7 @@ mod test {
             ]),
         };
         let parse = match named_expression(test) {
-            IResult::Done(_, exp) => exp,
+            IResult::Ok((_, exp)) => exp,
             fail @ _ => panic!("Failed to parse with result {:?}", fail),
         };
         assert!(parse == expect, "{:?} != {:?}", parse, expect);
@@ -514,7 +247,7 @@ mod test {
             ]),
         };
         let parse = match format_expression(test) {
-            IResult::Done(_, exp) => exp,
+            IResult::Ok((_, exp)) => exp,
             fail @ _ => panic!("Failed to parse with result {:?}", fail),
         };
         assert!(parse == expect, "{:?} != {:?}", parse, expect);
@@ -537,7 +270,7 @@ mod test {
             ]),
         };
         let parse = match format_expression(test) {
-            IResult::Done(_, exp) => exp,
+            IResult::Ok((_, exp)) => exp,
             fail @ _ => panic!("Failed to parse with result {:?}", fail),
         };
         assert!(parse == expect, "{:?} != {:?}", parse, expect);
@@ -565,7 +298,7 @@ mod test {
             },
         ]);
         let parse = match expression_tree(test) {
-            IResult::Done(_, exp) => exp,
+            IResult::Ok((_, exp)) => exp,
             fail @ _ => panic!("Failed to parse with result {:?}", fail),
         };
         assert!(parse == expect, "{:?} != {:?}", parse, expect);
@@ -576,7 +309,7 @@ mod test {
         let test = b"\\('quoted literal'#*(bB))";
         let expect = str::from_utf8(test).expect("Invalid utf-8");
         let parse = match expression_tree(test) {
-            IResult::Done(_, exp) => exp,
+            IResult::Ok((_, exp)) => exp,
             fail => panic!("Failed to parse with result {:?}", fail),
         };
         assert!(
