@@ -3,6 +3,7 @@ use proptest::collection::vec;
 #[cfg(test)]
 use proptest::prelude::*;
 use std::fmt;
+use std::iter::{Extend, FromIterator, IntoIterator};
 
 /// All valid expression names
 ///
@@ -108,8 +109,6 @@ pub enum Style {
     Fg(Color),
     /// Set a background color
     Bg(Color),
-    /// Provide Raw ANSI escape
-    Number(u8),
 }
 
 impl fmt::Display for Style {
@@ -138,7 +137,6 @@ impl fmt::Display for Style {
             Style::Bg(Black) => write!(f, "K")?,
             &Style::Fg(RGB(r, g, b)) => write!(f, "[{},{},{}]", r, g, b)?,
             &Style::Bg(RGB(r, g, b)) => write!(f, "{{{},{},{}}}", r, g, b)?,
-            &Style::Number(n) => write!(f, "{}", n)?,
         };
         Ok(())
     }
@@ -172,8 +170,141 @@ pub fn arb_style() -> impl Strategy<Value = Style> {
         Just(Bg(Black)),
         any::<(u8, u8, u8)>().prop_map(|(r, g, b)| Fg(RGB(r, g, b))),
         any::<(u8, u8, u8)>().prop_map(|(r, g, b)| Bg(RGB(r, g, b))),
-        any::<u8>().prop_map(|n| Number(n)),
     ]
+}
+
+/// An aggregate unit which describes the sub total of a set of styles
+///
+/// ```
+/// use glitter_lang::ast::{Style, CompleteStyle, Color};
+/// use Style::*;
+/// use Color::*;
+/// let complete: CompleteStyle = [Fg(Green), Bold].iter().collect();
+/// assert_eq!(complete, CompleteStyle {
+///     fg: Some(Green),
+///     bold: true,
+///     ..Default::default()
+/// });
+/// ```
+///
+/// The conversion from a collection of styles is lossy:
+///
+/// ```
+/// use glitter_lang::ast::{Style, CompleteStyle, Color};
+/// use Style::*;
+/// use Color::*;
+///
+/// // Style::Reset at the final position is the same as
+/// // CompleteStyle::default()
+/// let reset_to_default: CompleteStyle = [Bg(Red), Reset].iter().collect();
+/// assert_eq!(reset_to_default, CompleteStyle::default());
+///
+/// // Information about repeated styles is lost
+/// let green: CompleteStyle = [Fg(Green)].iter().collect();
+/// let green_repeat: CompleteStyle = std::iter::repeat(&Fg(Green)).take(10).collect();
+/// assert_eq!(green, green_repeat);
+/// ```
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub struct CompleteStyle {
+    pub fg: Option<Color>,
+    pub bg: Option<Color>,
+    pub bold: bool,
+    pub italics: bool,
+    pub underline: bool,
+}
+
+impl CompleteStyle {
+    pub fn add(&mut self, style: Style) {
+        use Style::*;
+        match style {
+            Fg(color) => self.fg = Some(color),
+            Bg(color) => self.bg = Some(color),
+            Bold => self.bold = true,
+            Italic => self.italics = true,
+            Underline => self.underline = true,
+            Reset => *self = Default::default(),
+        }
+    }
+}
+
+impl Default for CompleteStyle {
+    fn default() -> Self {
+        CompleteStyle {
+            fg: None,
+            bg: None,
+            bold: false,
+            italics: false,
+            underline: false,
+        }
+    }
+}
+
+impl std::ops::AddAssign for CompleteStyle {
+    fn add_assign(&mut self, with: Self) {
+        if with == Default::default() {
+            return *self = Default::default();
+        }
+
+        *self = Self {
+            fg: with.fg.or(self.fg),
+            bg: with.bg.or(self.bg),
+            bold: with.bold || self.bold,
+            italics: with.italics || self.italics,
+            underline: with.underline || self.underline,
+        }
+    }
+}
+
+impl From<Style> for CompleteStyle {
+    fn from(s: Style) -> Self {
+        let mut ctx = Self::default();
+        ctx.add(s);
+        ctx
+    }
+}
+
+impl fmt::Display for CompleteStyle {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use Style::*;
+
+        if *self == Self::default() {
+            return write!(f, "{}", Reset);
+        }
+
+        if let Some(color) = self.fg {
+            write!(f, "{}", Fg(color))?;
+        }
+        if let Some(color) = self.bg {
+            write!(f, "{}", Bg(color))?;
+        }
+        if self.bold {
+            write!(f, "{}", Bold)?;
+        }
+        if self.italics {
+            write!(f, "{}", Italic)?;
+        }
+        if self.underline {
+            write!(f, "{}", Underline)?;
+        }
+
+        Ok(())
+    }
+}
+
+impl<'a> Extend<&'a Style> for CompleteStyle {
+    fn extend<E: IntoIterator<Item = &'a Style>>(&mut self, styles: E) {
+        for style in styles {
+            self.add(*style)
+        }
+    }
+}
+
+impl<'a> FromIterator<&'a Style> for CompleteStyle {
+    fn from_iter<I: IntoIterator<Item = &'a Style>>(iter: I) -> CompleteStyle {
+        let mut complete = CompleteStyle::default();
+        complete.extend(iter);
+        complete
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -195,7 +326,7 @@ impl Delimiter {
             Angle => "<",
             Square => "[",
             Curly => "{",
-            Parens => "\\(",
+            Parens => "(",
         }
     }
 
@@ -259,7 +390,7 @@ pub enum Expression {
         sub: Tree,
     },
     /// An expression which represents terminal text formatting
-    Format { style: Vec<Style>, sub: Tree },
+    Format { style: CompleteStyle, sub: Tree },
     /// A group of sub-expressions which forms an expression tree
     Group {
         /// Group delimiter type, [], <>, {}, or \()
@@ -279,8 +410,7 @@ impl fmt::Display for Expression {
                 if sub.0.is_empty() {
                     Ok(())
                 } else {
-                    write!(f, "({})", sub)?;
-                    Ok(())
+                    write!(f, "({})", sub)
                 }
             }
             Expression::Group { ref d, ref sub } => match d {
@@ -291,12 +421,7 @@ impl fmt::Display for Expression {
             },
             Expression::Format { ref style, ref sub } => {
                 write!(f, "#")?;
-                if let Some((first, ss)) = style.split_first() {
-                    write!(f, "{}", first)?;
-                    for s in ss {
-                        write!(f, ";{}", s)?;
-                    }
-                }
+                write!(f, "{}", style)?;
                 write!(f, "({})", sub)
             }
             Expression::Literal(ref string) => write!(f, "'{}'", string),
@@ -314,7 +439,7 @@ pub fn arb_expression() -> impl Strategy<Value = Expression> {
             sub: Tree::new(),
         }),
         vec(arb_style(), 1..5).prop_map(|style| Format {
-            style: style,
+            style: style.iter().collect(),
             sub: Tree::new(),
         }),
         "[^']*".prop_map(Literal),
@@ -327,7 +452,7 @@ pub fn arb_expression() -> impl Strategy<Value = Expression> {
                 sub: Tree(sub),
             }),
             (vec(arb_style(), 1..10), vec(inner.clone(), 0..10)).prop_map(|(style, sub)| Format {
-                style: style,
+                style: style.iter().collect(),
                 sub: Tree(sub),
             }),
             (arb_delimiter(), vec(inner.clone(), 0..10)).prop_map(|(delimiter, sub)| Group {

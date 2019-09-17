@@ -1,6 +1,6 @@
 //! Interpreter which transforms expressions into the desired output
 
-use crate::ast::{self, Expression, Name, Style, Tree};
+use crate::ast::{self, CompleteStyle, Expression, Name, Tree};
 use crate::color::*;
 use crate::git::Stats;
 
@@ -19,7 +19,7 @@ impl From<io::Error> for InterpreterErr {
     }
 }
 
-type State = Result<(StyleContext, bool), InterpreterErr>;
+type State = Result<(CompleteStyle, bool), InterpreterErr>;
 
 /// The interpreter which transforms a gist expression using the provided stats
 #[derive(Debug, PartialEq, Eq, Default, Clone)]
@@ -32,7 +32,7 @@ pub struct Interpreter {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum WriteCommand {
-    WriteContext(StyleContext),
+    WriteContext(CompleteStyle),
     WriteStr(&'static str),
     #[allow(unused)] // unused variant left in case of extension
     WriteString(String),
@@ -60,7 +60,7 @@ impl Interpreter {
             }
         }
 
-        let (_, wrote) = self.interpret_tree(w, &exps, StyleContext::default())?;
+        let (_, wrote) = self.interpret_tree(w, &exps, CompleteStyle::default())?;
 
         if wrote && self.allow_color {
             if self.bash_prompt {
@@ -93,7 +93,7 @@ impl Interpreter {
         &mut self,
         w: &mut W,
         exps: &Tree,
-        context: StyleContext,
+        context: CompleteStyle,
     ) -> State {
         let mut wrote = false;
         for e in exps.clone().0 {
@@ -103,7 +103,12 @@ impl Interpreter {
         Ok((context, wrote))
     }
 
-    fn interpret<W: io::Write>(&mut self, w: &mut W, exp: &Expression, ctx: StyleContext) -> State {
+    fn interpret<W: io::Write>(
+        &mut self,
+        w: &mut W,
+        exp: &Expression,
+        ctx: CompleteStyle,
+    ) -> State {
         use ast::Expression::{Format, Group, Literal, Named};
 
         match exp {
@@ -130,7 +135,7 @@ impl Interpreter {
                 write!(w, "{}", literal)?;
                 Ok((ctx, true))
             }
-            Format { ref style, ref sub } => self.interpret_format(w, style, sub, ctx),
+            Format { ref style, ref sub } => self.interpret_format(w, *style, sub, ctx),
         }
     }
 
@@ -141,7 +146,7 @@ impl Interpreter {
         sub: &Tree,
         val: V1,
         prefix: V2,
-        ctx: StyleContext,
+        ctx: CompleteStyle,
     ) -> State {
         if val.is_empty() {
             return Ok((ctx, false));
@@ -169,7 +174,7 @@ impl Interpreter {
         w: &mut W,
         sub: &Tree,
         literal: &str,
-        context: StyleContext,
+        context: CompleteStyle,
     ) -> State {
         match sub.0.len() {
             0 => {
@@ -191,7 +196,7 @@ impl Interpreter {
         w: &mut W,
         name: Name,
         sub: &Tree,
-        ctx: StyleContext,
+        ctx: CompleteStyle,
     ) -> State {
         use ast::Name::*;
         match name {
@@ -215,14 +220,14 @@ impl Interpreter {
     fn interpret_format<W: io::Write>(
         &mut self,
         w: &mut W,
-        style: &[Style],
+        style: CompleteStyle,
         sub: &Tree,
-        mut context: StyleContext,
+        mut context: CompleteStyle,
     ) -> State {
         let prev = context;
         let len = self.command_queue.len();
 
-        context.extend(style);
+        context += style;
         self.command_queue.push(WriteCommand::WriteContext(context));
         if let (_, true) = self.interpret_tree(w, sub, context)? {
             prev.write_difference(w, &context, self.bash_prompt)?;
@@ -349,7 +354,7 @@ mod test {
             let stats = Stats::default();
             let interior = Expression::Named { name, sub: Tree::new(), };
             let exp = Expression::Format {
-                style,
+                style: style.iter().collect(),
                 sub: Tree(vec![interior]),
             };
 

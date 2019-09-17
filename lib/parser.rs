@@ -1,6 +1,6 @@
 //! Format parser, determines the syntax for pretty formats
 
-use crate::ast::{Color::*, Delimiter, Expression, Name, Style, Tree};
+use crate::ast::{Color::*, CompleteStyle, Delimiter, Expression, Name, Style, Tree};
 use std::str::{self, Utf8Error};
 
 use nom::IResult;
@@ -103,20 +103,149 @@ pub fn named_expression(input: &[u8]) -> IResult<&[u8], Expression> {
 }
 
 pub fn digit(input: &[u8]) -> IResult<&[u8], u8> {
-    unimplemented!()
+    use nom::bytes::complete::take_while1;
+    use nom::character::is_digit;
+    use nom::combinator::map;
+
+    map(take_while1(is_digit), u8_from_bytes)(input)
 }
 
 pub fn format_expression(input: &[u8]) -> IResult<&[u8], Expression> {
-    unimplemented!()
+    use nom::branch::alt;
+    use nom::bytes::complete::tag;
+    use nom::combinator::{complete, map, opt};
+    use nom::multi::fold_many1;
+    use nom::sequence::{delimited, preceded, terminated, tuple};
+
+    // create sub-parsers for each style type
+    use Style::*;
+    macro_rules! style {
+        ($tag:expr, $type:expr) => {
+            map(tag($tag), |_| $type)
+        };
+    }
+    let reset = style!(b"~", Reset);
+    let bold = style!(b"*", Bold);
+    let underline = style!(b"_", Underline);
+    let italic = style!(b"i", Italic);
+    let fg_red = style!(b"r", Fg(Red));
+    let bg_red = style!(b"R", Bg(Red));
+    let fg_green = style!(b"g", Fg(Green));
+    let bg_green = style!(b"G", Bg(Green));
+    let fg_yellow = style!(b"y", Fg(Yellow));
+    let bg_yellow = style!(b"Y", Bg(Yellow));
+    let fg_blue = style!(b"b", Fg(Blue));
+    let bg_blue = style!(b"B", Bg(Blue));
+    let fg_magenta = style!(b"m", Fg(Magenta));
+    let bg_magenta = style!(b"M", Bg(Magenta));
+    let fg_cyan = style!(b"c", Fg(Cyan));
+    let bg_cyan = style!(b"C", Bg(Cyan));
+    let fg_white = style!(b"w", Fg(White));
+    let bg_white = style!(b"W", Bg(White));
+    let fg_black = style!(b"k", Fg(Black));
+    let bg_black = style!(b"K", Bg(Black));
+
+    // more complicated sub-parsers for RGB/Indexed Color styles
+    let rgb = tuple((
+        terminated(digit, tag(b",")),
+        terminated(digit, tag(b",")),
+        digit,
+    ));
+    let fg_rgb = map(
+        complete(delimited(tag(b"["), &rgb, tag(b"]"))),
+        |(r, g, b)| Fg(RGB(r, g, b)),
+    );
+    let bg_rgb = map(
+        complete(delimited(tag(b"{"), &rgb, tag(b"}"))),
+        |(r, g, b)| Bg(RGB(r, g, b)),
+    );
+
+    let style = alt((
+        reset,
+        bold,
+        underline,
+        italic,
+        // HACK: nest alts due to size limit on tuple
+        alt((
+            fg_red, bg_red, fg_green, bg_green, fg_yellow, bg_yellow, fg_blue, bg_blue, fg_magenta,
+            bg_magenta, fg_cyan, bg_cyan, fg_white, bg_white, fg_black, bg_black,
+        )),
+        fg_rgb,
+        bg_rgb,
+    ));
+
+    let styles = preceded(
+        tag(b"#"),
+        fold_many1(style, CompleteStyle::default(), |mut complete, style| {
+            complete.add(style);
+            complete
+        }),
+    );
+
+    let arguments = opt(sub_tree);
+
+    styles(input).and_then(|(input, style)| {
+        map(arguments, |sub_tree| Expression::Format {
+            style,
+            sub: sub_tree.unwrap_or_else(|| Tree::new()),
+        })(input)
+    })
 }
 
 pub fn expression_tree(input: &[u8]) -> IResult<&[u8], Tree> {
-    unimplemented!()
+    use nom::combinator::map;
+    use nom::multi::many0;
+
+    map(many0(expression), |es| Tree(es))(input)
+}
+
+pub fn group_expression(input: &[u8]) -> IResult<&[u8], Expression> {
+    use nom::branch::alt;
+    use nom::bytes::complete::tag;
+    use nom::combinator::{complete, map};
+    use nom::sequence::delimited;
+
+    macro_rules! group {
+        ($l:tt, $r:tt, $type:expr) => {
+            map(
+                complete(delimited(tag($l), expression_tree, tag($r))),
+                |sub| Expression::Group { d: $type, sub },
+            )
+        };
+    }
+
+    alt((
+        group!(b"<", b">", Delimiter::Angle),
+        group!(b"[", b"]", Delimiter::Square),
+        group!(b"{", b"}", Delimiter::Curly),
+        group!(b"\\(", b")", Delimiter::Parens),
+    ))(input)
+}
+
+pub fn literal_expression(input: &[u8]) -> IResult<&[u8], Expression> {
+    use nom::bytes::complete::tag;
+    use nom::combinator::{map, map_res};
+    use nom::sequence::delimited;
+
+    map(
+        delimited(
+            tag("\'"),
+            map_res(string_contents, convert_vec_utf8),
+            tag("\'"),
+        ),
+        Expression::Literal,
+    )(input)
 }
 
 /// Parse a single expression, expanding nested expressions
 pub fn expression(input: &[u8]) -> IResult<&[u8], Expression> {
-    unimplemented!()
+    use nom::branch::alt;
+    alt((
+        named_expression,
+        format_expression,
+        group_expression,
+        literal_expression,
+    ))(input)
 }
 
 /// Parse a format
@@ -124,7 +253,13 @@ pub fn parse<I>(input: I) -> Result<Tree, ParseError>
 where
     I: AsRef<[u8]>,
 {
-    unimplemented!()
+    use nom::combinator::all_consuming;
+    all_consuming(expression_tree)(input.as_ref())
+        .map(|(_, tree)| tree)
+        .map_err(|e| {
+            eprintln!("{:?}", e);
+            ()
+        })
 }
 
 #[cfg(test)]
@@ -155,7 +290,7 @@ mod test {
                 sub: Tree(vec![
                     Expression::Literal("試験".to_string()),
                     Expression::Format {
-                        style: vec![Style::Bold],
+                        style: (&[Style::Bold]).iter().collect(),
                         sub: Tree(vec![Expression::Literal("テスト".to_string())]),
                     },
                 ]),
@@ -231,33 +366,12 @@ mod test {
     }
 
     #[test]
-    fn format_number() {
-        let test = b"#1;42(bB)";
-        let expect = Expression::Format {
-            style: vec![Style::Number(1), Style::Number(42)],
-            sub: Tree(vec![
-                Expression::Named {
-                    name: Name::Branch,
-                    sub: Tree::new(),
-                },
-                Expression::Named {
-                    name: Name::Remote,
-                    sub: Tree::new(),
-                },
-            ]),
-        };
-        let parse = match format_expression(test) {
-            IResult::Ok((_, exp)) => exp,
-            fail @ _ => panic!("Failed to parse with result {:?}", fail),
-        };
-        assert!(parse == expect, "{:?} != {:?}", parse, expect);
-    }
-
-    #[test]
     fn format_rgb() {
-        let test = b"#[42,0,0];{0,0,42}(bB)";
+        let test = b"#[42,0,0]{0,0,42}(bB)";
         let expect = Expression::Format {
-            style: vec![Style::Fg(RGB(42, 0, 0)), Style::Bg(RGB(0, 0, 42))],
+            style: vec![Style::Fg(RGB(42, 0, 0)), Style::Bg(RGB(0, 0, 42))]
+                .iter()
+                .collect(),
             sub: Tree(vec![
                 Expression::Named {
                     name: Name::Branch,

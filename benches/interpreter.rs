@@ -178,7 +178,7 @@ fn style_length(c: &mut Criterion) {
         ($n:expr) => {
             |b: &mut Bencher, s: &Stats| {
                 let styles = Tree(vec![Format {
-                    style: std::iter::repeat(Bold).take($n).collect(),
+                    style: std::iter::repeat(&Bold).take($n).collect(),
                     sub: Tree(Vec::new()),
                 }]);
                 let mut i = Interpreter::new(s.clone(), true, true);
