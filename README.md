@@ -69,7 +69,6 @@ $GIT_FMT="#y([#c*(b)#c(B(#~(' ')))#w((#~*(+-))[#g(MARD)#r(maud)]{#m*_(h('@'))})]
 
 function prompt {
     $path = $(get-location)
-pub type ParseError = ();
     glit "'$path'$GIT_FMT'> '" -e "'$path> '"
 }
 ```
