@@ -348,6 +348,63 @@ pub fn arb_delimiter() -> impl Strategy<Value = Delimiter> {
     prop_oneof![Just(Angle), Just(Square), Just(Curly), Just(Parens)]
 }
 
+/// Special separator characters which can appear between expressions
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+pub enum Separator {
+    At,
+    Bar,
+    Dot,
+    Comma,
+    Space,
+    Colon,
+    Semicolon,
+    Underscore,
+}
+
+impl Separator {
+    pub fn as_str(&self) -> &'static str {
+        use Separator::*;
+        match self {
+            At => "@",
+            Bar => "|",
+            Dot => ".",
+            Comma => ",",
+            Space => " ",
+            Colon => ":",
+            Semicolon => ";",
+            Underscore => "_",
+        }
+    }
+}
+
+impl AsRef<str> for Separator {
+    fn as_ref(&self) -> &'static str {
+        self.as_str()
+    }
+}
+
+impl fmt::Display for Separator {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.as_ref())
+    }
+}
+
+#[cfg(test)]
+pub fn arb_separator() -> impl Strategy<Value = Separator> {
+    use Separator::*;
+
+    prop_oneof![
+        Just(At),
+        Just(Bar),
+        Just(Dot),
+        Just(Comma),
+        Just(Space),
+        Just(Colon),
+        Just(Semicolon),
+        Just(Underscore),
+    ]
+}
+
 /// The types of possible expressions which form an expression tree
 ///
 /// The gist format has three types of valid expressions:
@@ -361,8 +418,8 @@ pub fn arb_delimiter() -> impl Strategy<Value = Delimiter> {
 ///
 /// **Named expressions** take one of two forms: the plain form with no arguments, or with arguments
 ///
-/// - `\name` plain form
-/// - `\name(\exp1\exp2...\expn)` any number of expressions, no separaters
+/// - `name` plain form
+/// - `name(exp1exp2...exp3)` any number of expressions
 ///
 /// **Group expressions** are set of expressions, which are not comma seperated.  There are a few
 /// base group types:
@@ -400,6 +457,8 @@ pub enum Expression {
     },
     /// Literal characters including whitespace, surrounded by single quotes
     Literal(String),
+    /// Separator between elements in a tree
+    Separator(Separator),
 }
 
 impl fmt::Display for Expression {
@@ -425,6 +484,7 @@ impl fmt::Display for Expression {
                 write!(f, "({})", sub)
             }
             Expression::Literal(ref string) => write!(f, "'{}'", string),
+            Expression::Separator(s) => write!(f, "{}", s),
         }
     }
 }
@@ -443,6 +503,7 @@ pub fn arb_expression() -> impl Strategy<Value = Expression> {
             sub: Tree::new(),
         }),
         "[^']*".prop_map(Literal),
+        arb_separator().prop_map(Separator),
     ];
 
     leaf.prop_recursive(8, 64, 10, |inner| {
@@ -459,6 +520,7 @@ pub fn arb_expression() -> impl Strategy<Value = Expression> {
                 d: delimiter,
                 sub: Tree(sub),
             }),
+            arb_separator().prop_map(Separator),
         ]
     })
 }

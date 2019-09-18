@@ -96,9 +96,31 @@ impl Interpreter {
         context: CompleteStyle,
     ) -> State {
         let mut wrote = false;
+        let mut separator_count = 0;
         for e in &exps.0 {
-            let (_, wrote_now) = self.interpret(w, &e, context)?;
-            wrote = wrote_now | wrote;
+            use Expression::*;
+            match e {
+                Separator(s) => {
+                    // Queue all separators if anything has been written in this
+                    // tree so far
+                    if wrote {
+                        separator_count += 1;
+                        self.command_queue.push(WriteCommand::WriteStr(s.as_str()));
+                    }
+                }
+                e => {
+                    let (_, wrote_now) = self.interpret(w, &e, context)?;
+                    // Clear separators between previous expression and the current
+                    // one which was not written, to prevent accumulating separators
+                    // between elements which were not supposed to have them
+                    if !wrote_now {
+                        for _ in 0..separator_count {
+                            self.command_queue.pop();
+                        }
+                    }
+                    wrote |= wrote_now;
+                }
+            }
         }
         Ok((context, wrote))
     }
@@ -109,7 +131,7 @@ impl Interpreter {
         exp: &Expression,
         ctx: CompleteStyle,
     ) -> State {
-        use ast::Expression::{Format, Group, Literal, Named};
+        use ast::Expression::*;
 
         match exp {
             Named { ref name, ref sub } => self.interpret_named(w, *name, sub, ctx),
@@ -136,6 +158,7 @@ impl Interpreter {
                 Ok((ctx, true))
             }
             Format { ref style, ref sub } => self.interpret_format(w, *style, sub, ctx),
+            Separator(_) => unreachable!("Separator must be handled in tree interpreter"),
         }
     }
 

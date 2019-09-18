@@ -1,6 +1,6 @@
 //! Format parser, determines the syntax for pretty formats
 
-use crate::ast::{Color::*, CompleteStyle, Delimiter, Expression, Name, Style, Tree};
+use crate::ast::{Color::*, CompleteStyle, Delimiter, Expression, Name, Separator, Style, Tree};
 use std::str::{self, Utf8Error};
 
 use nom::IResult;
@@ -237,6 +237,34 @@ pub fn literal_expression(input: &[u8]) -> IResult<&[u8], Expression> {
     )(input)
 }
 
+pub fn separator_expression(input: &[u8]) -> IResult<&[u8], Expression> {
+    use nom::branch::alt;
+    use nom::bytes::complete::tag;
+    use nom::combinator::map;
+
+    use Separator::*;
+
+    macro_rules! sep {
+        ($sep:expr) => {
+            map(tag($sep.as_str().as_bytes()), |_| $sep)
+        };
+    }
+
+    map(
+        alt((
+            sep!(At),
+            sep!(Bar),
+            sep!(Dot),
+            sep!(Comma),
+            sep!(Space),
+            sep!(Colon),
+            sep!(Semicolon),
+            sep!(Underscore),
+        )),
+        Expression::Separator,
+    )(input)
+}
+
 /// Parse a single expression, expanding nested expressions
 pub fn expression(input: &[u8]) -> IResult<&[u8], Expression> {
     use nom::branch::alt;
@@ -245,6 +273,7 @@ pub fn expression(input: &[u8]) -> IResult<&[u8], Expression> {
         format_expression,
         group_expression,
         literal_expression,
+        separator_expression,
     ))(input)
 }
 
@@ -281,6 +310,25 @@ mod test {
     }
 
     #[test]
+    fn separator() {
+        use Separator::*;
+        let test = b"  , |  ::";
+        let expect = Tree(vec![
+            Expression::Separator(Space),
+            Expression::Separator(Space),
+            Expression::Separator(Comma),
+            Expression::Separator(Space),
+            Expression::Separator(Bar),
+            Expression::Separator(Space),
+            Expression::Separator(Space),
+            Expression::Separator(Colon),
+            Expression::Separator(Colon),
+        ]);
+        let parse = parse(test).unwrap();
+        assert!(parse == expect, "{:?} != {:?}", parse, expect);
+    }
+
+    #[test]
     fn japanese_text() {
         let test = "'日本語は綺麗なのです'['試験'#*('テスト')]".as_bytes();
         let expect = Tree(vec![
@@ -297,7 +345,7 @@ mod test {
             },
         ]);
         let parse = expression_tree(test).unwrap().1;
-        assert!(parse == expect, "{:?} != {:?}", parse, expect);
+        assert!(parse == expect, "{:#?} != {:#?}", parse, expect);
     }
 
     #[test]
