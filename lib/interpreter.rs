@@ -96,7 +96,7 @@ impl Interpreter {
         context: CompleteStyle,
     ) -> State {
         let mut wrote = false;
-        for e in exps.clone().0 {
+        for e in &exps.0 {
             let (_, wrote_now) = self.interpret(w, &e, context)?;
             wrote = wrote_now | wrote;
         }

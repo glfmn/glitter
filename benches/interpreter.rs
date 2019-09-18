@@ -68,7 +68,7 @@ fn empty_stats(c: &mut Criterion) {
 fn real_world(c: &mut Criterion) {
     use glitter_lang::parser::parse;
 
-    let tree = parse(r"[#g;*(b)#r(B(#~('..')))#w(\(#~;*(+('↑')-('↓')))<#g(MARD)#r(maud)>{#m;*;_(h('@'))})]' '#b;*('\w')'\n '").expect("failed to parse example");
+    let tree = parse(r"[#g*(b)#r(B(#~('..')))#w(\(#~*(+('↑')-('↓')))<#g(MARD)#r(maud)>{#m*_(h('@'))})]' '#b*('\w')'\n '").expect("failed to parse example");
 
     let mut i = Interpreter::new(stats(), true, true);
     c.bench_function("Real world \"$GIT_FMT\" example", move |b| {
