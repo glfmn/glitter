@@ -47,10 +47,10 @@ Add the following snippet to your `~/.bashrc`:
 
 ```bash
 # Format to use inside of git repositories or their sub-folders
-export GIT_FMT="[#g*(b)#r(B(#~(' ⇒ ')))#w(\(#~*(+('↑')-('↓')))<#g(MARD)#r(maud)>{#m*_(h('@'))})]' '#b*('\w')'\n '"
+export GIT_FMT="#g*(b)..#r(B)[+('↑')-('↓'), #~(#g(MARD):#r(maud)), h(#m('@'))]:#b*('\w')'\n\$ '"
 
 # Format to use outside of git repositories
-export PS1_FMT="#g(#*('\u')'@\h')':'#b*('\w')'\$ '"
+export PS1_FMT="#g(#*('\u')@'\h'):#b*('\w')'\$ '"
 
 __set_prompt() {
     PS1="$(glit "$GIT_FMT" -b -e "$PS1_FMT")"
@@ -63,9 +63,9 @@ export PROMPT_COMMAND=__set_prompt
 
 Add the following snippet to your `$PROFILE`:
 
-```ps1
+```powershell
 # Format to use inside of git repositories
-$GIT_FMT="#y([#c*(b)#c(B(#~(' ')))#w((#~*(+-))[#g(MARD)#r(maud)]{#m*_(h('@'))})])"
+$GIT_FMT=":#y([#c*(b) #c(B):#~(+,-) | #~(#g(MARD):#r(maud):#m(h('@')))])"
 
 function prompt {
     $path = $(get-location)
@@ -77,9 +77,9 @@ function prompt {
 
 Add the following snippet to your `~/.zshrc` file:
 
-```sh
+```zsh
 # Format used in a git repository
-export GIT_FMT="[#g;*(b)#r(B(#~(' ⇒ ')))#w(\(#~*(+('↑')-('↓')))<#g(MARD)#r(maud)>{#m*_(h('@'))})]' '#b*('%~')"
+export GIT_FMT="#g*(b)..#r(B)[+('↑')-('↓'), #~(#g(MARD):#r(maud)), h(#m('@'))] #b*('%~')"
 
 # Fallback format used outside of git repositories
 export PS1_FMT="#g*('%m')#b*('%~')"
@@ -95,10 +95,11 @@ Replace your `~/.config/fish/functions/fish_prompt.fish` file with:
 
 ```fish
 function fish_prompt
+    set -l path (prompt_pwd)
     # format used in git repositories
-    set git "#y('"(prompt_pwd)"')' '[#c(#*(b)B(#~('@'{+-})))]' '{{#g(MARD)#r(maud)}}'\n➟ '"
+    set git "#g*(b)..#r(B)[+('↑')-('↓'), #~(#g(MARD):#r(maud)), h(#m('@'))] #y('$path')'\n> '"
     # fallback format used outside of git repositories
-    set ps1 "#y('"(prompt_pwd)" ')'➟ '"
+    set ps1 "#y('$path ')'> '"
 
     echo -e (glit $git -e $ps1)
 end
@@ -167,7 +168,7 @@ Glitter will surround grouped expressions with parentheses or brackets, and will
 | `[r\(a)]`   | empty, when `r`, `a` are 0      |
 
 ```
-$ glit "\b\<\M>"
+$ glit "b<M>"
 ```
 
 ### Literals
@@ -218,7 +219,7 @@ Format styles can be combined in a single expression by just combining them:
 
 ```
 $ glit "#r*('hello world')"
-$ glit "#g*(\b)"
+$ glit "#g*(b)"
 $ glit "#[255,175,52]('orange text')"
 $ glit "#G('green background')"
 ```
