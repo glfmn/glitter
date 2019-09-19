@@ -307,7 +307,7 @@ impl<'a> FromIterator<&'a Style> for CompleteStyle {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum Delimiter {
     /// <>
     Angle,

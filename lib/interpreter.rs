@@ -1,6 +1,6 @@
 //! Interpreter which transforms expressions into the desired output
 
-use crate::ast::{self, CompleteStyle, Expression, Name, Tree};
+use crate::ast::{self, CompleteStyle, Delimiter, Expression, Name, Tree};
 use crate::color::*;
 use crate::git::Stats;
 
@@ -19,7 +19,7 @@ impl From<io::Error> for InterpreterErr {
     }
 }
 
-type State = Result<(CompleteStyle, bool), InterpreterErr>;
+type Result<T = bool> = std::result::Result<T, InterpreterErr>;
 
 /// The interpreter which transforms a gist expression using the provided stats
 #[derive(Debug, PartialEq, Eq, Default, Clone)]
@@ -53,20 +53,39 @@ impl Interpreter {
         self.command_queue.truncate(self.command_queue.len() - i);
     }
 
-    /// Evaluate an expression tree and return the resulting formatted `String`
-    pub fn evaluate<W: io::Write>(&mut self, exps: &Tree, w: &mut W) -> Result<(), InterpreterErr> {
-        if self.allow_color {
-            if self.bash_prompt {
-                self.command_queue
-                    .push(WriteCommand::WriteStr("\u{01}\x1B[0m\u{02}"));
+    fn queue_str(&mut self, s: &'static str) {
+        self.command_queue.push(WriteCommand::WriteStr(s));
+    }
+
+    #[inline(always)]
+    fn with_command<F, C, W>(&mut self, w: &mut W, c: WriteCommand, execute: F, close: C) -> Result
+    where
+        W: io::Write,
+        F: Fn(&mut Self, &mut W) -> Result,
+        C: Fn(&mut Self, &mut W) -> Result<()>,
+    {
+        self.command_queue.push(c);
+        execute(self, w).and_then(|wrote| {
+            if wrote {
+                close(self, w).map(|_| true)
             } else {
-                self.command_queue.push(WriteCommand::WriteStr("\x1B[0m"));
+                self.command_queue.pop();
+                Ok(false)
             }
+        })
+    }
+
+    /// Evaluate an expression tree and return the resulting formatted `String`
+    pub fn evaluate<W: io::Write>(&mut self, exps: &Tree, w: &mut W) -> Result<()> {
+        if self.allow_color {
+            self.queue_str(if self.bash_prompt {
+                "\u{01}\x1B[0m\u{02}"
+            } else {
+                "\x1B[0m"
+            });
         }
 
-        let (_, wrote) = self.interpret_tree(w, &exps, CompleteStyle::default())?;
-
-        if wrote && self.allow_color {
+        if self.interpret_tree(w, &exps, CompleteStyle::default())? && self.allow_color {
             if self.bash_prompt {
                 write!(w, "\u{01}\x1B[0m\u{02}")?;
             } else {
@@ -80,7 +99,7 @@ impl Interpreter {
     }
 
     #[inline(always)]
-    fn write_queue<W: io::Write>(&mut self, w: &mut W) -> Result<(), InterpreterErr> {
+    fn write_queue<W: io::Write>(&mut self, w: &mut W) -> Result<()> {
         for command in self.command_queue.drain(..) {
             use WriteCommand::*;
             match command {
@@ -98,35 +117,35 @@ impl Interpreter {
         w: &mut W,
         exps: &Tree,
         context: CompleteStyle,
-    ) -> State {
+    ) -> Result {
+        use Expression::*;
         let mut wrote = false;
         let mut separator_count = 0;
         for e in &exps.0 {
-            use Expression::*;
             match e {
                 Separator(s) => {
                     // Queue all separators if anything has been written in this
                     // tree so far
                     if wrote {
                         separator_count += 1;
-                        self.command_queue.push(WriteCommand::WriteStr(s.as_str()));
+                        self.queue_str(s.as_str());
                     }
                 }
                 e => {
-                    let (_, wrote_now) = self.interpret(w, &e, context)?;
                     // Clear separators between previous expression and the current
                     // one which was not written, to prevent accumulating separators
                     // between elements which were not supposed to have them
-                    if !wrote_now {
+                    if self.interpret(w, &e, context)? {
+                        wrote = true;
+                    } else {
                         self.drain_queue(separator_count);
                         separator_count = 0;
                     }
-                    wrote |= wrote_now;
                 }
             }
         }
         self.drain_queue(separator_count);
-        Ok((context, wrote))
+        Ok(wrote)
     }
 
     fn interpret<W: io::Write>(
@@ -134,35 +153,38 @@ impl Interpreter {
         w: &mut W,
         exp: &Expression,
         ctx: CompleteStyle,
-    ) -> State {
+    ) -> Result {
         use ast::Expression::*;
 
         match exp {
-            Named { ref name, ref sub } => self.interpret_named(w, *name, sub, ctx),
-            Group { ref d, ref sub } => {
-                if sub.0.len() > 0 {
-                    let len = self.command_queue.len();
-                    self.command_queue.push(WriteCommand::WriteStr(d.left()));
-                    if let (_, true) = self.interpret_tree(w, &sub, ctx)? {
-                        write!(w, "{}", d.right())?;
-                        Ok((ctx, true))
-                    } else {
-                        while self.command_queue.len() > len {
-                            self.command_queue.pop();
-                        }
-                        Ok((ctx, false))
-                    }
-                } else {
-                    Ok((ctx, false))
-                }
-            }
+            Named { name, ref sub } => self.interpret_named(w, *name, sub, ctx),
+            Group { d, ref sub } => self.interpret_group(w, *d, sub, ctx),
+            Format { ref style, ref sub } => self.interpret_format(w, *style, sub, ctx),
             Literal(ref literal) => {
                 self.write_queue(w)?;
                 write!(w, "{}", literal)?;
-                Ok((ctx, true))
+                Ok(true)
             }
-            Format { ref style, ref sub } => self.interpret_format(w, *style, sub, ctx),
             Separator(_) => unreachable!("Separator must be handled in tree interpreter"),
+        }
+    }
+
+    fn interpret_group<W: io::Write>(
+        &mut self,
+        w: &mut W,
+        d: Delimiter,
+        sub: &Tree,
+        style: CompleteStyle,
+    ) -> Result {
+        if sub.0.len() > 0 {
+            self.with_command(
+                w,
+                WriteCommand::WriteStr(d.left()),
+                |i, w| i.interpret_tree(w, &sub, style),
+                |_, w| write!(w, "{}", d.right()).map_err(|e| e.into()),
+            )
+        } else {
+            Ok(false)
         }
     }
 
@@ -174,46 +196,39 @@ impl Interpreter {
         val: V1,
         prefix: V2,
         ctx: CompleteStyle,
-    ) -> State {
+    ) -> Result {
         if val.is_empty() {
-            return Ok((ctx, false));
+            return Ok(false);
         }
 
         self.write_queue(w)?;
 
-        match sub.0.len() {
-            0 => write!(w, "{}{}", prefix, val)?,
-            _ => {
-                let (_, wrote) = self.interpret_tree(w, sub, ctx)?;
-                if wrote {
-                    write!(w, "{}", val)?;
-                } else {
-                    write!(w, "{}{}", prefix, val)?;
-                }
-            }
+        if sub.0.is_empty() {
+            write!(w, "{}{}", prefix, val)?;
+            return Ok(true);
         }
-        Ok((ctx, true))
+
+        if self.interpret_tree(w, sub, ctx)? {
+            write!(w, "{}", val)?;
+        } else {
+            write!(w, "{}{}", prefix, val)?;
+        }
+
+        Ok(true)
     }
 
     #[inline(always)]
-    fn interpret_literal<W: io::Write>(
-        &mut self,
-        w: &mut W,
-        sub: &Tree,
-        literal: &str,
-        context: CompleteStyle,
-    ) -> State {
-        match sub.0.len() {
-            0 => {
-                write!(w, "{}", literal)?;
-                Ok((context, true))
-            }
-            _ => Err(InterpreterErr::UnexpectedArgs {
+    fn interpret_literal<W: io::Write>(&mut self, w: &mut W, sub: &Tree, s: &str) -> Result {
+        if sub.0.is_empty() {
+            write!(w, "{}", s)?;
+            Ok(true)
+        } else {
+            Err(InterpreterErr::UnexpectedArgs {
                 exp: Expression::Named {
                     name: Name::Quote,
                     sub: sub.clone(),
                 },
-            }),
+            })
         }
     }
 
@@ -224,7 +239,7 @@ impl Interpreter {
         name: Name,
         sub: &Tree,
         ctx: CompleteStyle,
-    ) -> State {
+    ) -> Result {
         use ast::Name::*;
         match name {
             Branch => self.optional_prefix(w, sub, self.stats.branch.clone(), "", ctx),
@@ -240,7 +255,7 @@ impl Interpreter {
             DeletedStaged => self.optional_prefix(w, sub, self.stats.deleted_staged, "D", ctx),
             Renamed => self.optional_prefix(w, sub, self.stats.renamed, "R", ctx),
             Stashed => self.optional_prefix(w, sub, self.stats.stashes, "H", ctx),
-            Quote => self.interpret_literal(w, sub, "'", ctx),
+            Quote => self.interpret_literal(w, sub, "'"),
         }
     }
 
@@ -250,21 +265,19 @@ impl Interpreter {
         style: CompleteStyle,
         sub: &Tree,
         mut context: CompleteStyle,
-    ) -> State {
+    ) -> Result {
         let prev = context;
-        let len = self.command_queue.len();
-
         context += style;
-        self.command_queue.push(WriteCommand::WriteContext(context));
-        if let (_, true) = self.interpret_tree(w, sub, context)? {
-            prev.write_difference(w, &context, self.bash_prompt)?;
-            Ok((context, true))
-        } else {
-            while self.command_queue.len() > len {
-                self.command_queue.pop();
-            }
-            Ok((context, false))
-        }
+
+        self.with_command(
+            w,
+            WriteCommand::WriteContext(context),
+            |i, w| i.interpret_tree(w, sub, context),
+            |i, w| {
+                prev.write_difference(w, &context, i.bash_prompt)
+                    .map_err(|e| e.into())
+            },
+        )
     }
 }
 
