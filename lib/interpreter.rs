@@ -49,6 +49,10 @@ impl Interpreter {
         }
     }
 
+    fn drain_queue(&mut self, i: usize) {
+        self.command_queue.truncate(self.command_queue.len() - i);
+    }
+
     /// Evaluate an expression tree and return the resulting formatted `String`
     pub fn evaluate<W: io::Write>(&mut self, exps: &Tree, w: &mut W) -> Result<(), InterpreterErr> {
         if self.allow_color {
@@ -114,14 +118,14 @@ impl Interpreter {
                     // one which was not written, to prevent accumulating separators
                     // between elements which were not supposed to have them
                     if !wrote_now {
-                        for _ in 0..separator_count {
-                            self.command_queue.pop();
-                        }
+                        self.drain_queue(separator_count);
+                        separator_count = 0;
                     }
                     wrote |= wrote_now;
                 }
             }
         }
+        self.drain_queue(separator_count);
         Ok((context, wrote))
     }
 
