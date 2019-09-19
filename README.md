@@ -1,7 +1,7 @@
 
 # ✨ glitter
 
-![Glit is an informative shell prompt](https://raw.githubusercontent.com/glfmn/glitter/develop/img/glit-demo.gif)
+![Glit is an informative shell prompt](img/glit-demo.gif)
 
 **Git status summary with custom formats, perfect for your shell prompt**
 
