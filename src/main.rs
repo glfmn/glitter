@@ -127,7 +127,7 @@ struct Opt {
 enum Error {
     Git(git2::Error),
     MissingFormat(PathBuf),
-    Glitter(glitter_lang::Error),
+    Glitter(String),
 }
 
 impl From<git2::Error> for Error {
@@ -136,9 +136,9 @@ impl From<git2::Error> for Error {
     }
 }
 
-impl From<glitter_lang::Error> for Error {
+impl<'a> From<glitter_lang::Error<'a>> for Error {
     fn from(e: glitter_lang::Error) -> Self {
-        Error::Glitter(e)
+        Error::Glitter(format!("{}", e))
     }
 }
 
@@ -152,7 +152,7 @@ impl Display for Error {
                 "No git repository in `{}` and no alternate format provided",
                 p.to_string_lossy()
             ),
-            Glitter(e) => write!(f, "Error with format: {:?}", e),
+            Glitter(e) => write!(f, "Error with format: {}", e),
         }
     }
 }
@@ -184,7 +184,7 @@ fn run() -> Result<(), Error> {
     use std::io::BufWriter;
     let mut out = BufWriter::with_capacity(128, std::io::stdout());
 
-    glitter(stats, format, color, opt.bash_escapes, &mut out)?;
+    glitter(stats, &format, color, opt.bash_escapes, &mut out)?;
 
     out.into_inner()
         .expect("Unable to complete writing format to output");

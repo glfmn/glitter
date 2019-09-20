@@ -1,60 +1,171 @@
 //! Format parser, determines the syntax for pretty formats
 
 use crate::ast::{Color::*, CompleteStyle, Delimiter, Expression, Name, Separator, Style, Tree};
+use std::fmt::{self, Display};
 use std::str;
 
-use nom::IResult;
+use nom::{error, IResult};
 
-pub type ParseError = ();
-
-fn sub_tree(input: &str) -> IResult<&str, Tree> {
-    use nom::bytes::complete::tag;
-    use nom::combinator::complete;
-    use nom::sequence::delimited;
-    complete(delimited(tag("("), expression_tree, tag(")")))(input)
+#[derive(Debug, PartialEq)]
+pub struct ParseError<'a> {
+    error: (&'a str, ParseErrorKind),
+    context: Option<(&'a str, &'static str)>,
+    top: Option<(&'a str, &'static str)>,
 }
 
-pub fn named_expression(input: &str) -> IResult<&str, Expression> {
+#[derive(Debug, PartialEq)]
+enum ParseErrorKind {
+    UnclosedString,
+    MissingDelimiter(char),
+    MissingChar(char),
+    UnrecognizedName,
+    UnrecognizedStyle,
+    InvalidRGB,
+    Other(error::ErrorKind),
+}
+
+impl<'a> ParseError<'a> {
+    fn missing_delimiter(input: &'a str, mut other: Self, delimiter: char) -> Self {
+        other.error = (input, ParseErrorKind::MissingDelimiter(delimiter));
+        other
+    }
+
+    fn missing_name(input: &'a str, mut other: Self) -> Self {
+        other.error = (input, ParseErrorKind::UnrecognizedName);
+        other
+    }
+
+    fn missing_style(input: &'a str, mut other: Self) -> Self {
+        use ParseErrorKind::UnrecognizedStyle;
+        other.error = (input, UnrecognizedStyle);
+        other
+    }
+
+    fn char_to_delimiter(input: &'a str, mut other: Self) -> Self {
+        use ParseErrorKind::{MissingChar, MissingDelimiter};
+        if let MissingChar(c) = other.error.1 {
+            other.error = (input, MissingDelimiter(c));
+        }
+        other
+    }
+
+    fn invalid_rgb(input: &'a str, mut other: Self) -> Self {
+        other.error = (input, ParseErrorKind::InvalidRGB);
+        other
+    }
+}
+
+impl<'a> error::ParseError<&'a str> for ParseError<'a> {
+    fn from_error_kind(input: &'a str, kind: error::ErrorKind) -> Self {
+        ParseError {
+            error: (input, ParseErrorKind::Other(kind)),
+            context: None,
+            top: None,
+        }
+    }
+
+    fn append(_input: &'a str, _kind: error::ErrorKind, other: Self) -> Self {
+        other
+    }
+
+    fn add_context(input: &'a str, context: &'static str, mut other: Self) -> Self {
+        other.context = other.context.or(Some((input, context)));
+        other.top = Some((input, context));
+        other
+    }
+
+    fn from_char(input: &'a str, missing: char) -> Self {
+        ParseError {
+            error: (input, ParseErrorKind::MissingChar(missing)),
+            context: None,
+            top: None,
+        }
+    }
+}
+
+impl<'a> Display for ParseError<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:#?}", self)
+    }
+}
+
+/// Parse a format
+pub fn parse<'a>(input: &'a str) -> Result<Tree, ParseError<'a>> {
+    use nom::combinator::all_consuming;
+    use nom::Err;
+
+    all_consuming(expression_tree)(input.as_ref())
+        .map(|(_, tree)| tree)
+        .map_err(|e| match e {
+            Err::Error(e) => e,
+            Err::Failure(e) => e,
+            _ => unreachable!("Parser failed to complete"),
+        })
+}
+
+pub fn expression_tree<'a>(input: &'a str) -> IResult<&str, Tree, ParseError<'a>> {
+    use nom::combinator::map;
+    use nom::multi::many0;
+
+    map(many0(expression), Tree)(input)
+}
+
+/// Parse a single expression, expanding nested expressions
+pub fn expression<'a>(input: &'a str) -> IResult<&str, Expression, ParseError<'a>> {
+    use nom::branch::alt;
+    use nom::error::context;
+
+    alt((
+        context("group", group_expression),
+        context("string", literal_expression),
+        context("format", format_expression),
+        separator_expression,
+        context("expression", named_expression),
+    ))(input)
+}
+
+fn sub_tree<'a>(input: &'a str) -> IResult<&str, Tree, ParseError<'a>> {
+    use nom::character::complete::char;
+    use nom::combinator::{complete, cut};
+    use nom::sequence::delimited;
+
+    complete(delimited(
+        char('('),
+        cut(expression_tree),
+        map_err(char(')'), |_, e| {
+            ParseError::missing_delimiter(input, e, ')')
+        }),
+    ))(input)
+}
+
+pub fn named_expression<'a>(input: &'a str) -> IResult<&str, Expression, ParseError<'a>> {
     use nom::branch::alt;
     use nom::bytes::complete::tag;
+    use nom::character::complete::char;
     use nom::combinator::{map, opt};
 
-    // create sub-parsers for each type of name, this defines what
+    // sub-parsers for each type of name, this defines what
     // literal values are translated to what names; must match the
     // fmt::Display implementation
     use Name::*;
-    let stashed = map(tag("h"), |_| Stashed);
-    let branch = map(tag("b"), |_| Branch);
-    let remote = map(tag("B"), |_| Remote);
-    let ahead = map(tag("+"), |_| Ahead);
-    let behind = map(tag("-"), |_| Behind);
-    let conflict = map(tag("u"), |_| Conflict);
-    let added = map(tag("A"), |_| Added);
-    let untracked = map(tag("a"), |_| Untracked);
-    let modified = map(tag("M"), |_| Modified);
-    let unstaged = map(tag("m"), |_| Unstaged);
-    let deleted = map(tag("d"), |_| Deleted);
-    let deleted_staged = map(tag("D"), |_| DeletedStaged);
-    let renamed = map(tag("R"), |_| Renamed);
-    let quote = map(tag("\\\'"), |_| Quote);
-
-    // Combine sub-parsers for each name value to get a sum total
     let name = alt((
-        stashed,
-        branch,
-        remote,
-        ahead,
-        behind,
-        conflict,
-        added,
-        untracked,
-        modified,
-        unstaged,
-        deleted,
-        deleted_staged,
-        renamed,
-        quote,
+        map(char('h'), |_| Stashed),
+        map(char('b'), |_| Branch),
+        map(char('B'), |_| Remote),
+        map(char('+'), |_| Ahead),
+        map(char('-'), |_| Behind),
+        map(char('u'), |_| Conflict),
+        map(char('A'), |_| Added),
+        map(char('a'), |_| Untracked),
+        map(char('M'), |_| Modified),
+        map(char('m'), |_| Unstaged),
+        map(char('d'), |_| Deleted),
+        map(char('D'), |_| DeletedStaged),
+        map(char('R'), |_| Renamed),
+        map(tag("\\\'"), |_| Quote),
     ));
+
+    let name = map_err(name, ParseError::missing_name);
 
     // Optional argument sub_tree
     let prefix = opt(sub_tree);
@@ -68,13 +179,13 @@ pub fn named_expression(input: &str) -> IResult<&str, Expression> {
     })
 }
 
-fn u8_from_bytes(input: &str) -> u8 {
+fn u8_from_bytes<'a>(input: &'a str) -> u8 {
     input
         .parse()
         .expect("attempted to parse a value that was not a number")
 }
 
-fn digit(input: &str) -> IResult<&str, u8> {
+fn digit<'a>(input: &'a str) -> IResult<&str, u8, ParseError<'a>> {
     use nom::bytes::complete::take_while1;
     use nom::character::is_digit;
     use nom::combinator::map;
@@ -82,105 +193,98 @@ fn digit(input: &str) -> IResult<&str, u8> {
     map(take_while1(|c| is_digit(c as u8)), u8_from_bytes)(input)
 }
 
-fn u8_triple(input: &str) -> IResult<&str, (u8, u8, u8)> {
-    use nom::bytes::complete::tag;
+fn u8_triple<'a>(input: &'a str) -> IResult<&str, (u8, u8, u8), ParseError<'a>> {
+    use nom::character::complete::char;
     use nom::sequence::{terminated, tuple};
 
     tuple((
-        terminated(digit, tag(",")),
-        terminated(digit, tag(",")),
+        terminated(digit, char(',')),
+        terminated(digit, char(',')),
         digit,
     ))(input)
 }
 
-fn style_token(input: &str) -> IResult<&str, Style> {
+fn style_token<'a>(input: &'a str) -> IResult<&str, Style, ParseError<'a>> {
     use nom::branch::alt;
-    use nom::bytes::complete::tag;
+    use nom::character::complete::char;
     use nom::combinator::{complete, map};
-    use nom::error::context;
     use nom::sequence::delimited;
 
     // create sub-parsers for each style type
     use Style::*;
     macro_rules! style {
         ($tag:expr, $type:expr) => {
-            map(tag($tag), |_| $type)
+            map(char($tag), |_| $type)
         };
     }
-    let reset = style!("~", Reset);
-    let bold = style!("*", Bold);
-    let underline = style!("_", Underline);
-    let italic = style!("i", Italic);
-    let fg_red = style!("r", Fg(Red));
-    let bg_red = style!("R", Bg(Red));
-    let fg_green = style!("g", Fg(Green));
-    let bg_green = style!("G", Bg(Green));
-    let fg_yellow = style!("y", Fg(Yellow));
-    let bg_yellow = style!("Y", Bg(Yellow));
-    let fg_blue = style!("b", Fg(Blue));
-    let bg_blue = style!("B", Bg(Blue));
-    let fg_magenta = style!("m", Fg(Magenta));
-    let bg_magenta = style!("M", Bg(Magenta));
-    let fg_cyan = style!("c", Fg(Cyan));
-    let bg_cyan = style!("C", Bg(Cyan));
-    let fg_white = style!("w", Fg(White));
-    let bg_white = style!("W", Bg(White));
-    let fg_black = style!("k", Fg(Black));
-    let bg_black = style!("K", Bg(Black));
+
+    // sub-parsers for each type of style, this defines what
+    // literals translate to what Style Tokens; must match the
+    // fmt::Display implementation
+    let styles = alt((
+        style!('~', Reset),
+        style!('*', Bold),
+        style!('_', Underline),
+        style!('i', Italic),
+        style!('r', Fg(Red)),
+        style!('R', Bg(Red)),
+        style!('g', Fg(Green)),
+        style!('G', Bg(Green)),
+        style!('y', Fg(Yellow)),
+        style!('Y', Bg(Yellow)),
+        style!('b', Fg(Blue)),
+        style!('B', Bg(Blue)),
+        style!('m', Fg(Magenta)),
+        style!('M', Bg(Magenta)),
+        style!('c', Fg(Cyan)),
+        style!('C', Bg(Cyan)),
+        style!('w', Fg(White)),
+        style!('W', Bg(White)),
+        style!('k', Fg(Black)),
+        style!('K', Bg(Black)),
+    ));
 
     // more complicated sub-parsers for RGB/Indexed Color styles
     let fg_rgb = map(
-        context(
-            "rgb foreground color",
-            complete(delimited(tag("["), u8_triple, tag("]"))),
-        ),
+        complete(delimited(
+            char('['),
+            map_fail(u8_triple, ParseError::invalid_rgb),
+            map_fail(char(']'), ParseError::char_to_delimiter),
+        )),
         |(r, g, b)| Fg(RGB(r, g, b)),
     );
     let bg_rgb = map(
-        context(
-            "rgb background color",
-            complete(delimited(tag("{"), u8_triple, tag("}"))),
-        ),
+        complete(delimited(
+            char('{'),
+            map_fail(u8_triple, ParseError::invalid_rgb),
+            map_fail(char('}'), ParseError::char_to_delimiter),
+        )),
         |(r, g, b)| Bg(RGB(r, g, b)),
     );
 
-    alt((
-        reset,
-        bold,
-        underline,
-        italic,
-        // HACK: nest alts due to size limit on tuple
-        alt((
-            fg_red, bg_red, fg_green, bg_green, fg_yellow, bg_yellow, fg_blue, bg_blue, fg_magenta,
-            bg_magenta, fg_cyan, bg_cyan, fg_white, bg_white, fg_black, bg_black,
-        )),
-        fg_rgb,
-        bg_rgb,
-    ))(input)
+    alt((fg_rgb, bg_rgb, map_err(styles, ParseError::missing_style)))(input)
 }
 
-pub fn format_expression(input: &str) -> IResult<&str, Expression> {
+pub fn format_expression<'a>(input: &'a str) -> IResult<&str, Expression, ParseError<'a>> {
     use nom::bytes::complete::tag;
-    use nom::combinator::map;
-    use nom::error::context;
+    use nom::combinator::{cut, map};
     use nom::multi::fold_many1;
     use nom::sequence::preceded;
 
-    let style = preceded(
-        tag("#"),
-        fold_many1(
-            style_token,
-            CompleteStyle::default(),
-            |mut complete, style| {
-                complete.add(style);
-                complete
-            },
-        ),
+    let tokens = fold_many1(
+        style_token,
+        CompleteStyle::default(),
+        |mut complete, style| {
+            complete.add(style);
+            complete
+        },
     );
 
-    let arguments = sub_tree;
+    let style = preceded(tag("#"), cut(tokens));
 
-    context("Format", style)(input).and_then(|(input, style)| {
+    let arguments = cut(sub_tree);
+
+    style(input).and_then(|(input, style)| {
         map(arguments, |sub_tree| Expression::Format {
             style,
             sub: sub_tree,
@@ -188,50 +292,57 @@ pub fn format_expression(input: &str) -> IResult<&str, Expression> {
     })
 }
 
-pub fn expression_tree(input: &str) -> IResult<&str, Tree> {
-    use nom::combinator::map;
-    use nom::multi::many0;
-
-    map(many0(expression), |es| Tree(es))(input)
-}
-
-pub fn group_expression(input: &str) -> IResult<&str, Expression> {
+pub fn group_expression<'a>(input: &'a str) -> IResult<&str, Expression, ParseError<'a>> {
     use nom::branch::alt;
     use nom::bytes::complete::tag;
+    use nom::character::complete::char;
     use nom::combinator::{complete, map};
     use nom::sequence::delimited;
 
     macro_rules! group {
         ($l:tt, $r:tt, $type:expr) => {
             map(
-                complete(delimited(tag($l), expression_tree, tag($r))),
+                complete(delimited(
+                    tag($l),
+                    expression_tree,
+                    map_fail(char($r), |_, e| ParseError::char_to_delimiter(input, e)),
+                )),
                 |sub| Expression::Group { d: $type, sub },
             )
         };
     }
 
     alt((
-        group!("<", ">", Delimiter::Angle),
-        group!("[", "]", Delimiter::Square),
-        group!("{", "}", Delimiter::Curly),
-        group!("\\(", ")", Delimiter::Parens),
+        group!("<", '>', Delimiter::Angle),
+        group!("[", ']', Delimiter::Square),
+        group!("{", '}', Delimiter::Curly),
+        group!("\\(", ')', Delimiter::Parens),
     ))(input)
 }
 
-pub fn literal_expression(input: &str) -> IResult<&str, Expression> {
-    use nom::bytes::complete::{tag, take_until};
+pub fn literal_expression<'a>(input: &'a str) -> IResult<&str, Expression, ParseError<'a>> {
+    use nom::bytes::complete::take_until;
+    use nom::character::complete::char;
     use nom::combinator::map;
     use nom::sequence::delimited;
 
-    let contents = map(take_until("\'"), str::to_owned);
+    let contents = map(
+        map_fail(take_until("\'"), |i, mut e: ParseError<'a>| {
+            e.error = (i, UnclosedString);
+            e
+        }),
+        str::to_owned,
+    );
+
+    use ParseErrorKind::UnclosedString;
 
     map(
-        delimited(tag("\'"), contents, tag("\'")),
+        delimited(char('\''), contents, char('\'')),
         Expression::Literal,
     )(input)
 }
 
-pub fn separator_expression(input: &str) -> IResult<&str, Expression> {
+pub fn separator_expression<'a>(input: &'a str) -> IResult<&str, Expression, ParseError<'a>> {
     use nom::branch::alt;
     use nom::bytes::complete::tag;
     use nom::combinator::map;
@@ -259,30 +370,36 @@ pub fn separator_expression(input: &str) -> IResult<&str, Expression> {
     )(input)
 }
 
-/// Parse a single expression, expanding nested expressions
-pub fn expression(input: &str) -> IResult<&str, Expression> {
-    use nom::branch::alt;
-    alt((
-        named_expression,
-        format_expression,
-        group_expression,
-        literal_expression,
-        separator_expression,
-    ))(input)
+/// Apply a function to the error returned by a parser
+fn map_err<I: Clone, E1, E2, M, F, O>(f: F, map_err: M) -> impl Fn(I) -> IResult<I, O, E2>
+where
+    F: Fn(I) -> IResult<I, O, E1>,
+    M: Fn(I, E1) -> E2,
+    E1: error::ParseError<I>,
+    E2: error::ParseError<I>,
+{
+    use nom::Err;
+    move |i: I| match f(i.clone()) {
+        Ok(o) => Ok(o),
+        Err(Err::Failure(e)) => Err(Err::Failure(map_err(i, e))),
+        Err(Err::Error(e)) => Err(Err::Error(map_err(i, e))),
+        Err(Err::Incomplete(i)) => Err(Err::Incomplete(i)),
+    }
 }
 
-/// Parse a format
-pub fn parse<I>(input: I) -> Result<Tree, ParseError>
+/// Apply a function to the error returned by a parser, coverting errors to failures
+fn map_fail<I: Clone, E1, E2, M, F, O>(f: F, on_err: M) -> impl Fn(I) -> IResult<I, O, E2>
 where
-    I: AsRef<str>,
+    F: Fn(I) -> IResult<I, O, E1>,
+    M: Fn(I, E1) -> E2,
+    E1: error::ParseError<I>,
+    E2: error::ParseError<I>,
 {
-    use nom::combinator::all_consuming;
-    all_consuming(expression_tree)(input.as_ref())
-        .map(|(_, tree)| tree)
-        .map_err(|e| {
-            eprintln!("{:?}", e);
-            ()
-        })
+    use nom::Err;
+    move |i: I| match map_err(&f, &on_err)(i) {
+        Err(Err::Error(e)) => Err(Err::Failure(e)),
+        rest => rest,
+    }
 }
 
 #[cfg(test)]
