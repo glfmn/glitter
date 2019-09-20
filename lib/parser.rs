@@ -1,54 +1,20 @@
 //! Format parser, determines the syntax for pretty formats
 
 use crate::ast::{Color::*, CompleteStyle, Delimiter, Expression, Name, Separator, Style, Tree};
-use std::str::{self, Utf8Error};
+use std::str;
 
 use nom::IResult;
 
 pub type ParseError = ();
 
-fn u8_from_bytes(input: &[u8]) -> u8 {
-    let raw = str::from_utf8(input).expect("invalid UTF-8");
-    raw.parse()
-        .expect("attempted to parse a value that was not a number")
-}
-
-/// Take string contents with valid escapes
-///
-/// https://github.com/Rydgel/monkey-rust/blob/master/lib/lexer/mod.rs
-fn string_contents(input: &[u8]) -> IResult<&[u8], Vec<u8>> {
-    let (i1, c1) = try_parse!(input, take!(1));
-    match c1 {
-        b"\'" => IResult::Ok((input, vec![])),
-        c => string_contents(i1).map(|(i2, done)| (i2, concat_slice_vec(c, done))),
-    }
-}
-
-/// Extend a slice with a vector, and return as a vector
-///
-/// https://github.com/Rydgel/monkey-rust/blob/master/lib/lexer/mod.rs
-fn concat_slice_vec(c: &[u8], done: Vec<u8>) -> Vec<u8> {
-    let mut new_vec = c.to_vec();
-    new_vec.extend(&done);
-    new_vec
-}
-
-/// Convert a vector of u8 values to a string
-///
-/// https://github.com/Rydgel/monkey-rust/blob/master/lib/lexer/mod.rs
-fn convert_vec_utf8(v: Vec<u8>) -> Result<String, Utf8Error> {
-    let slice = v.as_slice();
-    str::from_utf8(slice).map(|s| s.to_owned())
-}
-
-fn sub_tree(input: &[u8]) -> IResult<&[u8], Tree> {
+fn sub_tree(input: &str) -> IResult<&str, Tree> {
     use nom::bytes::complete::tag;
     use nom::combinator::complete;
     use nom::sequence::delimited;
-    complete(delimited(tag(b"("), expression_tree, tag(b")")))(input)
+    complete(delimited(tag("("), expression_tree, tag(")")))(input)
 }
 
-pub fn named_expression(input: &[u8]) -> IResult<&[u8], Expression> {
+pub fn named_expression(input: &str) -> IResult<&str, Expression> {
     use nom::branch::alt;
     use nom::bytes::complete::tag;
     use nom::combinator::{map, opt};
@@ -57,20 +23,20 @@ pub fn named_expression(input: &[u8]) -> IResult<&[u8], Expression> {
     // literal values are translated to what names; must match the
     // fmt::Display implementation
     use Name::*;
-    let stashed = map(tag(b"h"), |_| Stashed);
-    let branch = map(tag(b"b"), |_| Branch);
-    let remote = map(tag(b"B"), |_| Remote);
-    let ahead = map(tag(b"+"), |_| Ahead);
-    let behind = map(tag(b"-"), |_| Behind);
-    let conflict = map(tag(b"u"), |_| Conflict);
-    let added = map(tag(b"A"), |_| Added);
-    let untracked = map(tag(b"a"), |_| Untracked);
-    let modified = map(tag(b"M"), |_| Modified);
-    let unstaged = map(tag(b"m"), |_| Unstaged);
-    let deleted = map(tag(b"d"), |_| Deleted);
-    let deleted_staged = map(tag(b"D"), |_| DeletedStaged);
-    let renamed = map(tag(b"R"), |_| Renamed);
-    let quote = map(tag(b"\\\'"), |_| Quote);
+    let stashed = map(tag("h"), |_| Stashed);
+    let branch = map(tag("b"), |_| Branch);
+    let remote = map(tag("B"), |_| Remote);
+    let ahead = map(tag("+"), |_| Ahead);
+    let behind = map(tag("-"), |_| Behind);
+    let conflict = map(tag("u"), |_| Conflict);
+    let added = map(tag("A"), |_| Added);
+    let untracked = map(tag("a"), |_| Untracked);
+    let modified = map(tag("M"), |_| Modified);
+    let unstaged = map(tag("m"), |_| Unstaged);
+    let deleted = map(tag("d"), |_| Deleted);
+    let deleted_staged = map(tag("D"), |_| DeletedStaged);
+    let renamed = map(tag("R"), |_| Renamed);
+    let quote = map(tag("\\\'"), |_| Quote);
 
     // Combine sub-parsers for each name value to get a sum total
     let name = alt((
@@ -102,20 +68,37 @@ pub fn named_expression(input: &[u8]) -> IResult<&[u8], Expression> {
     })
 }
 
-pub fn digit(input: &[u8]) -> IResult<&[u8], u8> {
+fn u8_from_bytes(input: &str) -> u8 {
+    input
+        .parse()
+        .expect("attempted to parse a value that was not a number")
+}
+
+fn digit(input: &str) -> IResult<&str, u8> {
     use nom::bytes::complete::take_while1;
     use nom::character::is_digit;
     use nom::combinator::map;
 
-    map(take_while1(is_digit), u8_from_bytes)(input)
+    map(take_while1(|c| is_digit(c as u8)), u8_from_bytes)(input)
 }
 
-pub fn format_expression(input: &[u8]) -> IResult<&[u8], Expression> {
+fn u8_triple(input: &str) -> IResult<&str, (u8, u8, u8)> {
+    use nom::bytes::complete::tag;
+    use nom::sequence::{terminated, tuple};
+
+    tuple((
+        terminated(digit, tag(",")),
+        terminated(digit, tag(",")),
+        digit,
+    ))(input)
+}
+
+fn style_token(input: &str) -> IResult<&str, Style> {
     use nom::branch::alt;
     use nom::bytes::complete::tag;
-    use nom::combinator::{complete, map, opt};
-    use nom::multi::fold_many1;
-    use nom::sequence::{delimited, preceded, terminated, tuple};
+    use nom::combinator::{complete, map};
+    use nom::error::context;
+    use nom::sequence::delimited;
 
     // create sub-parsers for each style type
     use Style::*;
@@ -124,43 +107,44 @@ pub fn format_expression(input: &[u8]) -> IResult<&[u8], Expression> {
             map(tag($tag), |_| $type)
         };
     }
-    let reset = style!(b"~", Reset);
-    let bold = style!(b"*", Bold);
-    let underline = style!(b"_", Underline);
-    let italic = style!(b"i", Italic);
-    let fg_red = style!(b"r", Fg(Red));
-    let bg_red = style!(b"R", Bg(Red));
-    let fg_green = style!(b"g", Fg(Green));
-    let bg_green = style!(b"G", Bg(Green));
-    let fg_yellow = style!(b"y", Fg(Yellow));
-    let bg_yellow = style!(b"Y", Bg(Yellow));
-    let fg_blue = style!(b"b", Fg(Blue));
-    let bg_blue = style!(b"B", Bg(Blue));
-    let fg_magenta = style!(b"m", Fg(Magenta));
-    let bg_magenta = style!(b"M", Bg(Magenta));
-    let fg_cyan = style!(b"c", Fg(Cyan));
-    let bg_cyan = style!(b"C", Bg(Cyan));
-    let fg_white = style!(b"w", Fg(White));
-    let bg_white = style!(b"W", Bg(White));
-    let fg_black = style!(b"k", Fg(Black));
-    let bg_black = style!(b"K", Bg(Black));
+    let reset = style!("~", Reset);
+    let bold = style!("*", Bold);
+    let underline = style!("_", Underline);
+    let italic = style!("i", Italic);
+    let fg_red = style!("r", Fg(Red));
+    let bg_red = style!("R", Bg(Red));
+    let fg_green = style!("g", Fg(Green));
+    let bg_green = style!("G", Bg(Green));
+    let fg_yellow = style!("y", Fg(Yellow));
+    let bg_yellow = style!("Y", Bg(Yellow));
+    let fg_blue = style!("b", Fg(Blue));
+    let bg_blue = style!("B", Bg(Blue));
+    let fg_magenta = style!("m", Fg(Magenta));
+    let bg_magenta = style!("M", Bg(Magenta));
+    let fg_cyan = style!("c", Fg(Cyan));
+    let bg_cyan = style!("C", Bg(Cyan));
+    let fg_white = style!("w", Fg(White));
+    let bg_white = style!("W", Bg(White));
+    let fg_black = style!("k", Fg(Black));
+    let bg_black = style!("K", Bg(Black));
 
     // more complicated sub-parsers for RGB/Indexed Color styles
-    let rgb = tuple((
-        terminated(digit, tag(b",")),
-        terminated(digit, tag(b",")),
-        digit,
-    ));
     let fg_rgb = map(
-        complete(delimited(tag(b"["), &rgb, tag(b"]"))),
+        context(
+            "rgb foreground color",
+            complete(delimited(tag("["), u8_triple, tag("]"))),
+        ),
         |(r, g, b)| Fg(RGB(r, g, b)),
     );
     let bg_rgb = map(
-        complete(delimited(tag(b"{"), &rgb, tag(b"}"))),
+        context(
+            "rgb background color",
+            complete(delimited(tag("{"), u8_triple, tag("}"))),
+        ),
         |(r, g, b)| Bg(RGB(r, g, b)),
     );
 
-    let style = alt((
+    alt((
         reset,
         bold,
         underline,
@@ -172,34 +156,46 @@ pub fn format_expression(input: &[u8]) -> IResult<&[u8], Expression> {
         )),
         fg_rgb,
         bg_rgb,
-    ));
+    ))(input)
+}
 
-    let styles = preceded(
-        tag(b"#"),
-        fold_many1(style, CompleteStyle::default(), |mut complete, style| {
-            complete.add(style);
-            complete
-        }),
+pub fn format_expression(input: &str) -> IResult<&str, Expression> {
+    use nom::bytes::complete::tag;
+    use nom::combinator::map;
+    use nom::error::context;
+    use nom::multi::fold_many1;
+    use nom::sequence::preceded;
+
+    let style = preceded(
+        tag("#"),
+        fold_many1(
+            style_token,
+            CompleteStyle::default(),
+            |mut complete, style| {
+                complete.add(style);
+                complete
+            },
+        ),
     );
 
-    let arguments = opt(sub_tree);
+    let arguments = sub_tree;
 
-    styles(input).and_then(|(input, style)| {
+    context("Format", style)(input).and_then(|(input, style)| {
         map(arguments, |sub_tree| Expression::Format {
             style,
-            sub: sub_tree.unwrap_or_else(|| Tree::new()),
+            sub: sub_tree,
         })(input)
     })
 }
 
-pub fn expression_tree(input: &[u8]) -> IResult<&[u8], Tree> {
+pub fn expression_tree(input: &str) -> IResult<&str, Tree> {
     use nom::combinator::map;
     use nom::multi::many0;
 
     map(many0(expression), |es| Tree(es))(input)
 }
 
-pub fn group_expression(input: &[u8]) -> IResult<&[u8], Expression> {
+pub fn group_expression(input: &str) -> IResult<&str, Expression> {
     use nom::branch::alt;
     use nom::bytes::complete::tag;
     use nom::combinator::{complete, map};
@@ -215,29 +211,27 @@ pub fn group_expression(input: &[u8]) -> IResult<&[u8], Expression> {
     }
 
     alt((
-        group!(b"<", b">", Delimiter::Angle),
-        group!(b"[", b"]", Delimiter::Square),
-        group!(b"{", b"}", Delimiter::Curly),
-        group!(b"\\(", b")", Delimiter::Parens),
+        group!("<", ">", Delimiter::Angle),
+        group!("[", "]", Delimiter::Square),
+        group!("{", "}", Delimiter::Curly),
+        group!("\\(", ")", Delimiter::Parens),
     ))(input)
 }
 
-pub fn literal_expression(input: &[u8]) -> IResult<&[u8], Expression> {
-    use nom::bytes::complete::tag;
-    use nom::combinator::{map, map_res};
+pub fn literal_expression(input: &str) -> IResult<&str, Expression> {
+    use nom::bytes::complete::{tag, take_until};
+    use nom::combinator::map;
     use nom::sequence::delimited;
 
+    let contents = map(take_until("\'"), str::to_owned);
+
     map(
-        delimited(
-            tag("\'"),
-            map_res(string_contents, convert_vec_utf8),
-            tag("\'"),
-        ),
+        delimited(tag("\'"), contents, tag("\'")),
         Expression::Literal,
     )(input)
 }
 
-pub fn separator_expression(input: &[u8]) -> IResult<&[u8], Expression> {
+pub fn separator_expression(input: &str) -> IResult<&str, Expression> {
     use nom::branch::alt;
     use nom::bytes::complete::tag;
     use nom::combinator::map;
@@ -246,7 +240,7 @@ pub fn separator_expression(input: &[u8]) -> IResult<&[u8], Expression> {
 
     macro_rules! sep {
         ($sep:expr) => {
-            map(tag($sep.as_str().as_bytes()), |_| $sep)
+            map(tag($sep.as_str()), |_| $sep)
         };
     }
 
@@ -266,7 +260,7 @@ pub fn separator_expression(input: &[u8]) -> IResult<&[u8], Expression> {
 }
 
 /// Parse a single expression, expanding nested expressions
-pub fn expression(input: &[u8]) -> IResult<&[u8], Expression> {
+pub fn expression(input: &str) -> IResult<&str, Expression> {
     use nom::branch::alt;
     alt((
         named_expression,
@@ -280,7 +274,7 @@ pub fn expression(input: &[u8]) -> IResult<&[u8], Expression> {
 /// Parse a format
 pub fn parse<I>(input: I) -> Result<Tree, ParseError>
 where
-    I: AsRef<[u8]>,
+    I: AsRef<str>,
 {
     use nom::combinator::all_consuming;
     all_consuming(expression_tree)(input.as_ref())
@@ -301,7 +295,7 @@ mod test {
         fn disp_parse_invariant(expect in arb_expression()) {
             let test = format!("{}", expect);
             println!("{} from {:?}", test, expect);
-            let parse = expression(test.as_bytes());
+            let parse = expression(test.as_ref());
             println!("\t parsed => {:?}", parse);
             let parse = parse.unwrap().1;
             println!("expect {} ==\nresult {}\n", expect, parse);
@@ -312,7 +306,7 @@ mod test {
     #[test]
     fn separator() {
         use Separator::*;
-        let test = b"  , |  ::";
+        let test = "  , |  ::";
         let expect = Tree(vec![
             Expression::Separator(Space),
             Expression::Separator(Space),
@@ -330,7 +324,7 @@ mod test {
 
     #[test]
     fn japanese_text() {
-        let test = "'日本語は綺麗なのです'['試験'#*('テスト')]".as_bytes();
+        let test = "'日本語は綺麗なのです'['試験'#*('テスト')]";
         let expect = Tree(vec![
             Expression::Literal("日本語は綺麗なのです".to_string()),
             Expression::Group {
@@ -350,7 +344,7 @@ mod test {
 
     #[test]
     fn named_expression_no_args() {
-        let test = b"h";
+        let test = "h";
         let expect = Expression::Named {
             name: Name::Stashed,
             sub: Tree::new(),
@@ -361,7 +355,7 @@ mod test {
 
     #[test]
     fn named_expression_empty_args() {
-        let test = b"b()";
+        let test = "b()";
         let expect = Expression::Named {
             name: Name::Branch,
             sub: Tree::new(),
@@ -375,7 +369,7 @@ mod test {
 
     #[test]
     fn named_expression_1_arg() {
-        let test = b"b(+)";
+        let test = "b(+)";
         let expect = Expression::Named {
             name: Name::Branch,
             sub: Tree(vec![Expression::Named {
@@ -392,7 +386,7 @@ mod test {
 
     #[test]
     fn named_expression_2_arg() {
-        let test = b"b(+-)";
+        let test = "b(+-)";
         let expect = Expression::Named {
             name: Name::Branch,
             sub: Tree(vec![
@@ -415,7 +409,7 @@ mod test {
 
     #[test]
     fn format_rgb() {
-        let test = b"#[42,0,0]{0,0,42}(bB)";
+        let test = "#[42,0,0]{0,0,42}(bB)";
         let expect = Expression::Format {
             style: vec![Style::Fg(RGB(42, 0, 0)), Style::Bg(RGB(0, 0, 42))]
                 .iter()
@@ -440,7 +434,7 @@ mod test {
 
     #[test]
     fn empty_group_expression() {
-        let test = b"{}\\()[]<>";
+        let test = "{}\\()[]<>";
         let expect = Tree(vec![
             Expression::Group {
                 d: Delimiter::Curly,
@@ -468,9 +462,8 @@ mod test {
 
     #[test]
     fn disp() {
-        let test = b"\\('quoted literal'#*(bB))";
-        let expect = str::from_utf8(test).expect("Invalid utf-8");
-        let parse = match expression_tree(test) {
+        let expect = "\\('quoted literal'#*(bB))";
+        let parse = match expression_tree(expect) {
             IResult::Ok((_, exp)) => exp,
             fail => panic!("Failed to parse with result {:?}", fail),
         };
@@ -482,9 +475,8 @@ mod test {
             parse
         );
 
-        let test = b"#b(bB)";
-        let expect = str::from_utf8(test).unwrap();
-        let parse = expression_tree(test).unwrap().1;
+        let expect = "#b(bB)";
+        let parse = expression_tree(expect).unwrap().1;
         assert!(
             format!("{}", parse) == expect,
             "{} == {}\n\tparsed {:?}",
