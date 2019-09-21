@@ -6,3 +6,4 @@
 # everyone who runs the test benefits from these saved cases.
 xs 3142011520 843224812 3898577877 3574315311 # shrinks to expect = Named { name: Branch, sub: Tree([]) }
 xs 3203612036 1026296287 4040901873 1075305736 # shrinks to expect = Named { name: Branch, sub: Tree([Named { name: Branch, sub: Tree([Format { style: CompleteStyle { fg: None, bg: Some(Green), bold: false, italics: false, underline: false }, sub: Tree([]) }]) }]) }
+xs 3264031922 269537800 3033260192 1675212475 # shrinks to expect = Format { style: CompleteStyle { fg: None, bg: None, bold: false, italics: false, underline: false }, sub: Tree([Literal("(")]) }
