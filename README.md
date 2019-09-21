@@ -119,7 +119,7 @@ Glitter provides a flexible expression language which is easy to use and easy to
 | Compact Example                                          |
 |:---------------------------------------------------------|
 | ![example-1](img/example-1.png)                          |
-| `"[#c*(b)@#c(B):{+,-} | #~(#g(MARD):#r(maud):h('@'))]"`  |
+| `"[#c*(b)@#c(B):{+,-} \| #~(#g(MARD):#r(maud):h('@'))]"` |
 
 | Friendly for git Beginners                                                                      |
 |:------------------------------------------------------------------------------------------------|
