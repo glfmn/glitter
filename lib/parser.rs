@@ -1,93 +1,13 @@
 //! Format parser, determines the syntax for pretty formats
 
+mod combinator;
+
 use crate::ast::{Color::*, CompleteStyle, Delimiter, Expression, Name, Separator, Style, Tree};
 use std::fmt::{self, Display};
 use std::str;
 
+use combinator::{delimited_many0, map_err, map_fail};
 use nom::{error, IResult};
-
-#[derive(Debug, PartialEq)]
-pub struct ParseError<'a> {
-    error: (&'a str, ParseErrorKind),
-    context: Option<(&'a str, &'static str)>,
-    top: Option<(&'a str, &'static str)>,
-}
-
-#[derive(Debug, PartialEq)]
-enum ParseErrorKind {
-    UnclosedString,
-    MissingDelimiter(char),
-    MissingChar(char),
-    UnrecognizedName,
-    UnrecognizedStyle,
-    InvalidRGB,
-    Other(error::ErrorKind),
-}
-
-impl<'a> ParseError<'a> {
-    fn missing_delimiter(input: &'a str, mut other: Self, delimiter: char) -> Self {
-        other.error = (input, ParseErrorKind::MissingDelimiter(delimiter));
-        other
-    }
-
-    fn missing_name(input: &'a str, mut other: Self) -> Self {
-        other.error = (input, ParseErrorKind::UnrecognizedName);
-        other
-    }
-
-    fn missing_style(input: &'a str, mut other: Self) -> Self {
-        use ParseErrorKind::UnrecognizedStyle;
-        other.error = (input, UnrecognizedStyle);
-        other
-    }
-
-    fn char_to_delimiter(input: &'a str, mut other: Self) -> Self {
-        use ParseErrorKind::{MissingChar, MissingDelimiter};
-        if let MissingChar(c) = other.error.1 {
-            other.error = (input, MissingDelimiter(c));
-        }
-        other
-    }
-
-    fn invalid_rgb(input: &'a str, mut other: Self) -> Self {
-        other.error = (input, ParseErrorKind::InvalidRGB);
-        other
-    }
-}
-
-impl<'a> error::ParseError<&'a str> for ParseError<'a> {
-    fn from_error_kind(input: &'a str, kind: error::ErrorKind) -> Self {
-        ParseError {
-            error: (input, ParseErrorKind::Other(kind)),
-            context: None,
-            top: None,
-        }
-    }
-
-    fn append(_input: &'a str, _kind: error::ErrorKind, other: Self) -> Self {
-        other
-    }
-
-    fn add_context(input: &'a str, context: &'static str, mut other: Self) -> Self {
-        other.context = other.context.or(Some((input, context)));
-        other.top = Some((input, context));
-        other
-    }
-
-    fn from_char(input: &'a str, missing: char) -> Self {
-        ParseError {
-            error: (input, ParseErrorKind::MissingChar(missing)),
-            context: None,
-            top: None,
-        }
-    }
-}
-
-impl<'a> Display for ParseError<'a> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:#?}", self)
-    }
-}
 
 /// Parse a format
 pub fn parse<'a>(input: &'a str) -> Result<Tree, ParseError<'a>> {
@@ -120,22 +40,24 @@ pub fn expression<'a>(input: &'a str) -> IResult<&str, Expression, ParseError<'a
         context("string", literal_expression),
         context("format", format_expression),
         separator_expression,
-        context("expression", named_expression),
+        named_expression,
     ))(input)
 }
 
 fn sub_tree<'a>(input: &'a str) -> IResult<&str, Tree, ParseError<'a>> {
     use nom::character::complete::char;
-    use nom::combinator::{complete, cut};
-    use nom::sequence::delimited;
+    use nom::combinator::map;
+    // use nom::sequence::delimited;
 
-    complete(delimited(
+    let items = delimited_many0(
         char('('),
-        cut(expression_tree),
+        expression,
         map_err(char(')'), |_, e| {
             ParseError::missing_delimiter(input, e, ')')
         }),
-    ))(input)
+    );
+
+    map(items, Tree)(input)
 }
 
 pub fn named_expression<'a>(input: &'a str) -> IResult<&str, Expression, ParseError<'a>> {
@@ -168,7 +90,9 @@ pub fn named_expression<'a>(input: &'a str) -> IResult<&str, Expression, ParseEr
     let name = map_err(name, ParseError::missing_name);
 
     // Optional argument sub_tree
-    let prefix = opt(sub_tree);
+    let prefix = map_err(opt(sub_tree), |_, e| {
+        error::ParseError::add_context(input, "expression", e)
+    });
 
     // First, read name from input and then read the arguments.
     name(input).and_then(|(input, name)| {
@@ -280,7 +204,16 @@ pub fn format_expression<'a>(input: &'a str) -> IResult<&str, Expression, ParseE
         },
     );
 
-    let style = preceded(tag("#"), cut(tokens));
+    let style = preceded(
+        tag("#"),
+        map_fail(tokens, |i, e| {
+            if let ParseErrorKind::Other(_) = e.error.1 {
+                ParseError::missing_style(i, e)
+            } else {
+                e
+            }
+        }),
+    );
 
     let arguments = cut(sub_tree);
 
@@ -296,18 +229,20 @@ pub fn group_expression<'a>(input: &'a str) -> IResult<&str, Expression, ParseEr
     use nom::branch::alt;
     use nom::bytes::complete::tag;
     use nom::character::complete::char;
-    use nom::combinator::{complete, map};
-    use nom::sequence::delimited;
+    use nom::combinator::map;
 
     macro_rules! group {
         ($l:tt, $r:tt, $type:expr) => {
             map(
-                complete(delimited(
+                delimited_many0(
                     tag($l),
-                    expression_tree,
-                    map_fail(char($r), |_, e| ParseError::char_to_delimiter(input, e)),
-                )),
-                |sub| Expression::Group { d: $type, sub },
+                    expression,
+                    map_err(char($r), |_, e| ParseError::char_to_delimiter(input, e)),
+                ),
+                |sub| Expression::Group {
+                    d: $type,
+                    sub: Tree(sub),
+                },
             )
         };
     }
@@ -370,35 +305,143 @@ pub fn separator_expression<'a>(input: &'a str) -> IResult<&str, Expression, Par
     )(input)
 }
 
-/// Apply a function to the error returned by a parser
-fn map_err<I: Clone, E1, E2, M, F, O>(f: F, map_err: M) -> impl Fn(I) -> IResult<I, O, E2>
-where
-    F: Fn(I) -> IResult<I, O, E1>,
-    M: Fn(I, E1) -> E2,
-    E1: error::ParseError<I>,
-    E2: error::ParseError<I>,
-{
-    use nom::Err;
-    move |i: I| match f(i.clone()) {
-        Ok(o) => Ok(o),
-        Err(Err::Failure(e)) => Err(Err::Failure(map_err(i, e))),
-        Err(Err::Error(e)) => Err(Err::Error(map_err(i, e))),
-        Err(Err::Incomplete(i)) => Err(Err::Incomplete(i)),
+#[derive(Debug, PartialEq, Clone)]
+pub struct ParseError<'a> {
+    error: (&'a str, ParseErrorKind),
+    context: Option<(&'a str, &'static str)>,
+    top: Option<(&'a str, &'static str)>,
+}
+
+#[derive(Debug, PartialEq, Clone)]
+enum ParseErrorKind {
+    UnclosedString,
+    MissingDelimiter(char),
+    MissingChar(char),
+    UnrecognizedName,
+    UnrecognizedStyle,
+    InvalidRGB,
+    Other(error::ErrorKind),
+}
+
+impl<'a> ParseError<'a> {
+    fn missing_delimiter(input: &'a str, mut other: Self, delimiter: char) -> Self {
+        other.error = (input, ParseErrorKind::MissingDelimiter(delimiter));
+        other
+    }
+
+    fn missing_name(input: &'a str, mut other: Self) -> Self {
+        other.error = (input, ParseErrorKind::UnrecognizedName);
+        other
+    }
+
+    fn missing_style(input: &'a str, mut other: Self) -> Self {
+        use ParseErrorKind::UnrecognizedStyle;
+        other.error = (input, UnrecognizedStyle);
+        other
+    }
+
+    fn char_to_delimiter(input: &'a str, mut other: Self) -> Self {
+        use ParseErrorKind::{MissingChar, MissingDelimiter};
+        if let MissingChar(c) = other.error.1 {
+            other.error = (input, MissingDelimiter(c));
+        }
+        other
+    }
+
+    fn invalid_rgb(input: &'a str, mut other: Self) -> Self {
+        other.error = (input, ParseErrorKind::InvalidRGB);
+        other
     }
 }
 
-/// Apply a function to the error returned by a parser, coverting errors to failures
-fn map_fail<I: Clone, E1, E2, M, F, O>(f: F, on_err: M) -> impl Fn(I) -> IResult<I, O, E2>
-where
-    F: Fn(I) -> IResult<I, O, E1>,
-    M: Fn(I, E1) -> E2,
-    E1: error::ParseError<I>,
-    E2: error::ParseError<I>,
-{
-    use nom::Err;
-    move |i: I| match map_err(&f, &on_err)(i) {
-        Err(Err::Error(e)) => Err(Err::Failure(e)),
-        rest => rest,
+impl<'a> error::ParseError<&'a str> for ParseError<'a> {
+    fn from_error_kind(input: &'a str, kind: error::ErrorKind) -> Self {
+        ParseError {
+            error: (input, ParseErrorKind::Other(kind)),
+            context: None,
+            top: None,
+        }
+    }
+
+    fn append(_input: &'a str, _kind: error::ErrorKind, other: Self) -> Self {
+        other
+    }
+
+    fn add_context(input: &'a str, context: &'static str, mut other: Self) -> Self {
+        other.context = other.context.or(Some((input, context)));
+        other.top = Some((input, context));
+        other
+    }
+
+    fn from_char(input: &'a str, missing: char) -> Self {
+        ParseError {
+            error: (input, ParseErrorKind::MissingChar(missing)),
+            context: None,
+            top: None,
+        }
+    }
+}
+
+impl<'a> Display for ParseError<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        if let Some((input, context)) = self.context {
+            writeln!(f, "error: unable to parse {}", context)?;
+            writeln!(f, " |")?;
+            writeln!(f, " |    {}", input)?;
+            write!(f, " |    ")?;
+            if let Some(i) = input.rfind(self.error.0) {
+                for _ in 0..i {
+                    write!(f, " ")?;
+                }
+            }
+        } else {
+            writeln!(f, "error: unable to parse")?;
+            writeln!(f, " |")?;
+            writeln!(f, " |    {}", self.error.0)?;
+            write!(f, " |    ")?;
+        }
+        use ParseErrorKind::*;
+        match &self.error.1 {
+            UnclosedString => {
+                for _ in 0..self.error.0.len() {
+                    write!(f, "^")?;
+                }
+                writeln!(f, " missing closing quote (\')")?;
+            }
+            MissingDelimiter(d) => {
+                writeln!(f, "^ reached end without finding matching {}", d)?;
+            }
+            MissingChar(c) => {
+                let found: &str = &self.error.0.get(0..1).unwrap_or("");
+                writeln!(f, "^ expected \"{}\" here, found \"{}\"", c, found)?;
+            }
+            UnrecognizedName | Other(error::ErrorKind::Eof) => {
+                let found = self.error.0.get(0..1).unwrap_or("");
+                if found == "]" || found == ")" || found == ">" || found == "}" {
+                    writeln!(f, "^ improper close delimiter")?;
+                } else {
+                    writeln!(f, "^ not recognized as a valid expression")?;
+                }
+            }
+            UnrecognizedStyle => {
+                let found: &str = &self.error.0.get(0..1).unwrap_or("");
+                writeln!(f, "^ found \"{}\" which is not a style", found)?;
+            }
+            InvalidRGB => {
+                // find a potential matching brace and show interest up to that region
+                let found = self.error.0.find(|c| c == ']' || c == '}').unwrap_or(1);
+                for _ in 0..found.min(5).max(1) {
+                    write!(f, "^")?;
+                }
+                writeln!(f, " RGB values must be in the form \"0,0,0\"")?;
+            }
+            Other(e) => writeln!(f, "^ {:?}", e)?,
+        }
+        writeln!(f, " |    ")?;
+        if let Some((top_input, top)) = self.top {
+            writeln!(f, " = in {}: {}", top, top_input)?;
+        }
+        Ok(())
     }
 }
 
