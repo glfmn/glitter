@@ -23,8 +23,6 @@ structopt = "0.2.18"
 git2 = "0.9"
 nom = "^5.0.1"
 human-panic = "1.0.1"
-
-[target.'cfg(windows)'.dependencies]
 yansi = "0.5"
 
 [dev-dependencies]

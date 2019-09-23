@@ -323,6 +323,13 @@ enum ParseErrorKind {
     Other(error::ErrorKind),
 }
 
+/// Indirect fmt::Display in order to configure whether to use color
+#[derive(Debug, Clone)]
+pub struct PrettyPrinter<'a> {
+    error: ParseError<'a>,
+    use_color: bool,
+}
+
 impl<'a> ParseError<'a> {
     fn missing_delimiter(input: &'a str, mut other: Self, delimiter: char) -> Self {
         other.error = (input, ParseErrorKind::MissingDelimiter(delimiter));
@@ -351,6 +358,13 @@ impl<'a> ParseError<'a> {
     fn invalid_rgb(input: &'a str, mut other: Self) -> Self {
         other.error = (input, ParseErrorKind::InvalidRGB);
         other
+    }
+
+    pub fn pretty_print(&self, use_color: bool) -> PrettyPrinter<'a> {
+        PrettyPrinter {
+            use_color,
+            error: self.clone(),
+        }
     }
 }
 
@@ -382,66 +396,135 @@ impl<'a> error::ParseError<&'a str> for ParseError<'a> {
     }
 }
 
-impl<'a> Display for ParseError<'a> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        if let Some((input, context)) = self.context {
-            writeln!(f, "error: unable to parse {}", context)?;
-            writeln!(f, " |")?;
-            writeln!(f, " |    {}", input)?;
-            write!(f, " |    ")?;
-            if let Some(i) = input.rfind(self.error.0) {
+impl<'a> PrettyPrinter<'a> {
+    pub fn pretty_print(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use ParseErrorKind::*;
+        match &self.error.error.1 {
+            UnclosedString => self.error_message(self.error.error.0.len(), f, |f, bold| {
+                writeln!(f, "missing closing quote ({})", bold.paint("\'"))
+            }),
+            MissingDelimiter(d) => self.error_message(1, f, |f, bold| {
+                writeln!(f, "reached end without finding matching {}", bold.paint(d))
+            }),
+            MissingChar(c) => {
+                let found: &str = &self.error.error.0.get(0..1).unwrap_or("");
+                self.error_message(1, f, |f, bold| {
+                    writeln!(
+                        f,
+                        "expected \"{}\" here, found \"{}\"",
+                        bold.paint(c),
+                        bold.paint(found)
+                    )
+                })
+            }
+            UnrecognizedName | Other(error::ErrorKind::Eof) => {
+                let found = self.error.error.0.get(0..1).unwrap_or("");
+                self.error_message(found.len().max(1), f, |f, _| {
+                    if found == "]" || found == ")" || found == ">" || found == "}" {
+                        writeln!(f, "improper close delimiter")
+                    } else {
+                        writeln!(f, "not recognized as a valid expression")
+                    }
+                })
+            }
+            UnrecognizedStyle => {
+                let found: &str = &self.error.error.0.get(0..1).unwrap_or("");
+                self.error_message(1, f, |f, bold| {
+                    writeln!(f, "found \"{}\" which is not a style", bold.paint(found))
+                })
+            }
+            InvalidRGB => {
+                // find a potential matching brace and show interest up to that region
+                let found = self
+                    .error
+                    .error
+                    .0
+                    .find(|c| c == ']' || c == '}')
+                    .unwrap_or(1);
+                self.error_message(found.min(5).max(1), f, |f, bold| {
+                    writeln!(f, "RGB must be in the form \"{}\"", bold.paint("0,0,0"))
+                })
+            }
+            Other(e) => self.error_message(1, f, |f, _| writeln!(f, "{:?}", e)),
+        }
+    }
+
+    fn error_message<F>(&self, error_size: usize, f: &mut fmt::Formatter, message: F) -> fmt::Result
+    where
+        F: Fn(&mut fmt::Formatter, yansi::Style) -> fmt::Result,
+    {
+        use yansi::{Color, Style};
+
+        let bold = if self.use_color {
+            Style::new(Color::Unset).bold()
+        } else {
+            Style::new(Color::Unset)
+        };
+
+        let error = if self.use_color {
+            Style::new(Color::Red).bold()
+        } else {
+            Style::new(Color::Unset)
+        };
+
+        let dim = if self.use_color {
+            Style::new(Color::Unset).dimmed()
+        } else {
+            Style::new(Color::Unset)
+        };
+
+        if let Some((input, context)) = self.error.context {
+            writeln!(f, "{}: unable to parse {}", error.paint("error"), context)?;
+            writeln!(f, " {}", bold.paint("│"))?;
+            writeln!(f, " {}    {}", bold.paint("│"), input)?;
+            write!(f, " {}    ", bold.paint("│"))?;
+            if let Some(i) = input.rfind(self.error.error.0) {
                 for _ in 0..i {
                     write!(f, " ")?;
                 }
             }
         } else {
-            writeln!(f, "error: unable to parse")?;
-            writeln!(f, " |")?;
-            writeln!(f, " |    {}", self.error.0)?;
-            write!(f, " |    ")?;
+            writeln!(f, "{}: unable to parse", error.paint("error"))?;
+            writeln!(f, " {}    ", bold.paint("│"))?;
+            writeln!(f, " {}    {}", bold.paint("│"), self.error.error.0)?;
+            write!(f, " {}    ", bold.paint("│"))?;
         }
-        use ParseErrorKind::*;
-        match &self.error.1 {
-            UnclosedString => {
-                for _ in 0..self.error.0.len() {
-                    write!(f, "^")?;
-                }
-                writeln!(f, " missing closing quote (\')")?;
-            }
-            MissingDelimiter(d) => {
-                writeln!(f, "^ reached end without finding matching {}", d)?;
-            }
-            MissingChar(c) => {
-                let found: &str = &self.error.0.get(0..1).unwrap_or("");
-                writeln!(f, "^ expected \"{}\" here, found \"{}\"", c, found)?;
-            }
-            UnrecognizedName | Other(error::ErrorKind::Eof) => {
-                let found = self.error.0.get(0..1).unwrap_or("");
-                if found == "]" || found == ")" || found == ">" || found == "}" {
-                    writeln!(f, "^ improper close delimiter")?;
-                } else {
-                    writeln!(f, "^ not recognized as a valid expression")?;
-                }
-            }
-            UnrecognizedStyle => {
-                let found: &str = &self.error.0.get(0..1).unwrap_or("");
-                writeln!(f, "^ found \"{}\" which is not a style", found)?;
-            }
-            InvalidRGB => {
-                // find a potential matching brace and show interest up to that region
-                let found = self.error.0.find(|c| c == ']' || c == '}').unwrap_or(1);
-                for _ in 0..found.min(5).max(1) {
-                    write!(f, "^")?;
-                }
-                writeln!(f, " RGB values must be in the form \"0,0,0\"")?;
-            }
-            Other(e) => writeln!(f, "^ {:?}", e)?,
+
+        for _ in 0..error_size {
+            write!(f, "{}", error.paint("^"))?;
         }
-        writeln!(f, " |    ")?;
-        if let Some((top_input, top)) = self.top {
-            writeln!(f, " = in {}: {}", top, top_input)?;
+        write!(f, " ")?;
+        message(f, bold)?;
+
+        writeln!(f, " {}", bold.paint("│"))?;
+        if let (Some((top_input, top)), Some((input, _))) = (self.error.top, self.error.context) {
+            let (pre, input) = top_input.split_at(top_input.rfind(input).unwrap_or(0));
+            let (input, er) = input.split_at(input.rfind(self.error.error.0).unwrap_or(0));
+            let (er, post) = er.split_at(error_size.min(er.len()));
+            write!(
+                f,
+                " = in {}: {}{}{}{}",
+                top,
+                dim.paint(pre),
+                input,
+                error.paint(er),
+                dim.paint(post)
+            )?;
         }
+
         Ok(())
+    }
+}
+
+impl<'a> Display for PrettyPrinter<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        self.pretty_print(f)
+    }
+}
+
+impl<'a> Display for ParseError<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.pretty_print(false))
     }
 }
 

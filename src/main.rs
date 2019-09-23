@@ -136,12 +136,6 @@ impl From<git2::Error> for Error {
     }
 }
 
-impl<'a> From<glitter_lang::Error<'a>> for Error {
-    fn from(e: glitter_lang::Error) -> Self {
-        Error::Glitter(format!("{}", e))
-    }
-}
-
 impl Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         use Error::*;
@@ -152,7 +146,7 @@ impl Display for Error {
                 "No git repository in `{}` and no alternate format provided",
                 p.to_string_lossy()
             ),
-            Glitter(e) => write!(f, "Error with format: {}", e),
+            Glitter(e) => write!(f, "{}", e),
         }
     }
 }
@@ -184,7 +178,8 @@ fn run() -> Result<(), Error> {
     use std::io::BufWriter;
     let mut out = BufWriter::with_capacity(128, std::io::stdout());
 
-    glitter(stats, &format, color, opt.bash_escapes, &mut out)?;
+    glitter(stats, &format, color, opt.bash_escapes, &mut out)
+        .map_err(|e| Error::Glitter(e.pretty_print(color)))?;
 
     out.into_inner()
         .expect("Unable to complete writing format to output");

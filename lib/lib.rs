@@ -114,8 +114,6 @@ extern crate nom;
 #[cfg(test)]
 extern crate proptest;
 
-use std::io;
-
 pub mod ast;
 mod color;
 pub mod git;
@@ -124,11 +122,21 @@ pub mod parser;
 
 pub use git::Stats;
 use std::fmt::{self, Display};
+use std::io;
 
 #[derive(Debug)]
 pub enum Error<'a> {
     InterpreterError(interpreter::InterpreterErr),
     ParseError(parser::ParseError<'a>),
+}
+
+impl<'a> Error<'a> {
+    pub fn pretty_print(&self, use_color: bool) -> String {
+        match self {
+            Error::InterpreterError(e) => format!("{:?}", e),
+            Error::ParseError(e) => format!("{}", e.pretty_print(use_color)),
+        }
+    }
 }
 
 impl<'a> From<interpreter::InterpreterErr> for Error<'a> {
@@ -148,7 +156,7 @@ impl<'a> Display for Error<'a> {
         use Error::*;
         match self {
             InterpreterError(e) => write!(f, "{:?}", e),
-            ParseError(e) => write!(f, "Failed to parse\n{}", e),
+            ParseError(e) => write!(f, "{:?}", e.pretty_print(false)),
         }
     }
 }
