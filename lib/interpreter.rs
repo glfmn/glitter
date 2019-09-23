@@ -139,8 +139,8 @@ impl Interpreter {
                         wrote = true;
                     } else {
                         self.drain_queue(separator_count);
-                        separator_count = 0;
                     }
+                    separator_count = 0;
                 }
             }
         }
