@@ -107,6 +107,7 @@ end
 
 # Customizing your format
 
+
 Glitter provides a flexible expression language which is easy to use and easy to prototype with.
 
 ![`glit` is easy to experiment with.](img/glit-command.gif)
@@ -154,11 +155,13 @@ A glitter format is made of 4 types of expressions:
 | `h`       | # of stashed changes           | `H1`            |
 
 You can provide other expressions as arguments to expressions which replace the default prefix which appears before the result or file count.  For example, `\h('@')` will output `@3`
-instead of `H3` if your repository has 3 stashed files.  You can provide an arbitrary number of valid expressions as arguments to any of these expressions.
+instead of `H3` if your repository has 3 stashes.  You can provide an arbitrary number of valid expressions as arguments to any of these expressions.
 
 ```
 $ glit "b"
+master
 $ glit "b('on branch ')"
+on branch master
 ```
 
 Expressions generally only render any output if their corresponding values aren't empty; in other words, if there are no added files, `glit` will not produce `A0` as the output of `\A`, but instead will output an empty string.
@@ -202,7 +205,7 @@ Separators appear between expressions to help differentiate or group them. Suppo
 | Separator  | Symbol |
 |------------|--------|
 | Space      | ` `    |
-| Bar/Pipe   | `|`    |
+| Bar/Pipe   | `\|`   |
 | At         | `@`    |
 | Underscore | `_`    |
 | Colon      | `:`    |
