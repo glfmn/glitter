@@ -33,6 +33,10 @@ criterion = "0.3"
 name = "interpreter"
 harness = false
 
+[[bench]]
+name = "parser"
+harness = false
+
 [profile.release]
 debug = true
 
