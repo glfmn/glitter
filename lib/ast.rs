@@ -3,13 +3,13 @@ use proptest::collection::vec;
 #[cfg(test)]
 use proptest::prelude::*;
 use std::fmt;
+use std::iter::{Extend, FromIterator, IntoIterator};
 
 /// All valid expression names
 ///
 /// Defines the "standard library" of named expressions which represent git stats
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
 pub enum Name {
-    Backslash,
     Branch,
     Remote,
     Ahead,
@@ -42,8 +42,7 @@ impl fmt::Display for Name {
             Name::Deleted => "d",
             Name::DeletedStaged => "D",
             Name::Renamed => "R",
-            Name::Backslash => "\\",
-            Name::Quote => "\'",
+            Name::Quote => "\\\'",
         };
         write!(f, "{}", literal)
     }
@@ -54,7 +53,6 @@ pub fn arb_name() -> impl Strategy<Value = Name> {
     use self::Name::*;
 
     prop_oneof![
-        Just(Backslash),
         Just(Branch),
         Just(Remote),
         Just(Ahead),
@@ -111,8 +109,6 @@ pub enum Style {
     Fg(Color),
     /// Set a background color
     Bg(Color),
-    /// Provide Raw ANSI escape
-    Number(u8),
 }
 
 impl fmt::Display for Style {
@@ -141,7 +137,6 @@ impl fmt::Display for Style {
             Style::Bg(Black) => write!(f, "K")?,
             &Style::Fg(RGB(r, g, b)) => write!(f, "[{},{},{}]", r, g, b)?,
             &Style::Bg(RGB(r, g, b)) => write!(f, "{{{},{},{}}}", r, g, b)?,
-            &Style::Number(n) => write!(f, "{}", n)?,
         };
         Ok(())
     }
@@ -175,7 +170,238 @@ pub fn arb_style() -> impl Strategy<Value = Style> {
         Just(Bg(Black)),
         any::<(u8, u8, u8)>().prop_map(|(r, g, b)| Fg(RGB(r, g, b))),
         any::<(u8, u8, u8)>().prop_map(|(r, g, b)| Bg(RGB(r, g, b))),
-        any::<u8>().prop_map(|n| Number(n)),
+    ]
+}
+
+/// An aggregate unit which describes the sub total of a set of styles
+///
+/// ```
+/// use glitter_lang::ast::{Style, CompleteStyle, Color};
+/// use Style::*;
+/// use Color::*;
+/// let complete: CompleteStyle = [Fg(Green), Bold].iter().collect();
+/// assert_eq!(complete, CompleteStyle {
+///     fg: Some(Green),
+///     bold: true,
+///     ..Default::default()
+/// });
+/// ```
+///
+/// The conversion from a collection of styles is lossy:
+///
+/// ```
+/// use glitter_lang::ast::{Style, CompleteStyle, Color};
+/// use Style::*;
+/// use Color::*;
+///
+/// // Style::Reset at the final position is the same as
+/// // CompleteStyle::default()
+/// let reset_to_default: CompleteStyle = [Bg(Red), Reset].iter().collect();
+/// assert_eq!(reset_to_default, CompleteStyle::default());
+///
+/// // Information about repeated styles is lost
+/// let green: CompleteStyle = [Fg(Green)].iter().collect();
+/// let green_repeat: CompleteStyle = std::iter::repeat(&Fg(Green)).take(10).collect();
+/// assert_eq!(green, green_repeat);
+/// ```
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub struct CompleteStyle {
+    pub fg: Option<Color>,
+    pub bg: Option<Color>,
+    pub bold: bool,
+    pub italics: bool,
+    pub underline: bool,
+}
+
+impl CompleteStyle {
+    pub fn add(&mut self, style: Style) {
+        use Style::*;
+        match style {
+            Fg(color) => self.fg = Some(color),
+            Bg(color) => self.bg = Some(color),
+            Bold => self.bold = true,
+            Italic => self.italics = true,
+            Underline => self.underline = true,
+            Reset => *self = Default::default(),
+        }
+    }
+}
+
+impl Default for CompleteStyle {
+    fn default() -> Self {
+        CompleteStyle {
+            fg: None,
+            bg: None,
+            bold: false,
+            italics: false,
+            underline: false,
+        }
+    }
+}
+
+impl std::ops::AddAssign for CompleteStyle {
+    fn add_assign(&mut self, with: Self) {
+        if with == Default::default() {
+            return *self = Default::default();
+        }
+
+        *self = Self {
+            fg: with.fg.or(self.fg),
+            bg: with.bg.or(self.bg),
+            bold: with.bold || self.bold,
+            italics: with.italics || self.italics,
+            underline: with.underline || self.underline,
+        }
+    }
+}
+
+impl From<Style> for CompleteStyle {
+    fn from(s: Style) -> Self {
+        let mut ctx = Self::default();
+        ctx.add(s);
+        ctx
+    }
+}
+
+impl fmt::Display for CompleteStyle {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use Style::*;
+
+        if *self == Self::default() {
+            return write!(f, "{}", Reset);
+        }
+
+        if let Some(color) = self.fg {
+            write!(f, "{}", Fg(color))?;
+        }
+        if let Some(color) = self.bg {
+            write!(f, "{}", Bg(color))?;
+        }
+        if self.bold {
+            write!(f, "{}", Bold)?;
+        }
+        if self.italics {
+            write!(f, "{}", Italic)?;
+        }
+        if self.underline {
+            write!(f, "{}", Underline)?;
+        }
+
+        Ok(())
+    }
+}
+
+impl<'a> Extend<&'a Style> for CompleteStyle {
+    fn extend<E: IntoIterator<Item = &'a Style>>(&mut self, styles: E) {
+        for style in styles {
+            self.add(*style)
+        }
+    }
+}
+
+impl<'a> FromIterator<&'a Style> for CompleteStyle {
+    fn from_iter<I: IntoIterator<Item = &'a Style>>(iter: I) -> CompleteStyle {
+        let mut complete = CompleteStyle::default();
+        complete.extend(iter);
+        complete
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum Delimiter {
+    /// <>
+    Angle,
+    /// []
+    Square,
+    /// {}
+    Curly,
+    /// \()
+    Parens,
+}
+
+impl Delimiter {
+    pub fn left(&self) -> &'static str {
+        use Delimiter::*;
+        match self {
+            Angle => "<",
+            Square => "[",
+            Curly => "{",
+            Parens => "(",
+        }
+    }
+
+    pub fn right(&self) -> &'static str {
+        use Delimiter::*;
+        match self {
+            Angle => ">",
+            Square => "]",
+            Curly => "}",
+            Parens => ")",
+        }
+    }
+}
+
+#[cfg(test)]
+pub fn arb_delimiter() -> impl Strategy<Value = Delimiter> {
+    use self::Delimiter::*;
+
+    prop_oneof![Just(Angle), Just(Square), Just(Curly), Just(Parens)]
+}
+
+/// Special separator characters which can appear between expressions
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+pub enum Separator {
+    At,
+    Bar,
+    Dot,
+    Comma,
+    Space,
+    Colon,
+    Semicolon,
+    Underscore,
+}
+
+impl Separator {
+    pub fn as_str(&self) -> &'static str {
+        use Separator::*;
+        match self {
+            At => "@",
+            Bar => "|",
+            Dot => ".",
+            Comma => ",",
+            Space => " ",
+            Colon => ":",
+            Semicolon => ";",
+            Underscore => "_",
+        }
+    }
+}
+
+impl AsRef<str> for Separator {
+    fn as_ref(&self) -> &'static str {
+        self.as_str()
+    }
+}
+
+impl fmt::Display for Separator {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.as_ref())
+    }
+}
+
+#[cfg(test)]
+pub fn arb_separator() -> impl Strategy<Value = Separator> {
+    use Separator::*;
+
+    prop_oneof![
+        Just(At),
+        Just(Bar),
+        Just(Dot),
+        Just(Comma),
+        Just(Space),
+        Just(Colon),
+        Just(Semicolon),
+        Just(Underscore),
     ]
 }
 
@@ -192,8 +418,8 @@ pub fn arb_style() -> impl Strategy<Value = Style> {
 ///
 /// **Named expressions** take one of two forms: the plain form with no arguments, or with arguments
 ///
-/// - `\name` plain form
-/// - `\name(\exp1\exp2...\expn)` any number of expressions, no separaters
+/// - `name` plain form
+/// - `name(exp1exp2...exp3)` any number of expressions
 ///
 /// **Group expressions** are set of expressions, which are not comma seperated.  There are a few
 /// base group types:
@@ -221,48 +447,44 @@ pub enum Expression {
         sub: Tree,
     },
     /// An expression which represents terminal text formatting
-    Format { style: Vec<Style>, sub: Tree },
+    Format { style: CompleteStyle, sub: Tree },
     /// A group of sub-expressions which forms an expression tree
     Group {
-        /// Left delimiter
-        l: String,
-        /// Right delimiter
-        r: String,
+        /// Group delimiter type, [], <>, {}, or \()
+        d: Delimiter,
         /// A tree of sub expressions
         sub: Tree,
     },
     /// Literal characters including whitespace, surrounded by single quotes
     Literal(String),
+    /// Separator between elements in a tree
+    Separator(Separator),
 }
 
 impl fmt::Display for Expression {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Expression::Named { ref name, ref sub } => {
-                write!(f, "\\{}", name)?;
+                write!(f, "{}", name)?;
                 if sub.0.is_empty() {
                     Ok(())
                 } else {
-                    write!(f, "({})", sub)?;
-                    Ok(())
+                    write!(f, "({})", sub)
                 }
             }
-            Expression::Group {
-                ref l,
-                ref r,
-                ref sub,
-            } => write!(f, "\\{}{}{}", l, sub, r),
+            Expression::Group { ref d, ref sub } => match d {
+                Delimiter::Square => write!(f, "[{}]", sub),
+                Delimiter::Angle => write!(f, "<{}>", sub),
+                Delimiter::Parens => write!(f, "\\({})", sub),
+                Delimiter::Curly => write!(f, "{{{}}}", sub),
+            },
             Expression::Format { ref style, ref sub } => {
                 write!(f, "#")?;
-                if let Some((first, ss)) = style.split_first() {
-                    write!(f, "{}", first)?;
-                    for s in ss {
-                        write!(f, ";{}", s)?;
-                    }
-                }
+                write!(f, "{}", style)?;
                 write!(f, "({})", sub)
             }
             Expression::Literal(ref string) => write!(f, "'{}'", string),
+            Expression::Separator(s) => write!(f, "{}", s),
         }
     }
 }
@@ -277,42 +499,28 @@ pub fn arb_expression() -> impl Strategy<Value = Expression> {
             sub: Tree::new(),
         }),
         vec(arb_style(), 1..5).prop_map(|style| Format {
-            style: style,
+            style: style.iter().collect(),
             sub: Tree::new(),
         }),
         "[^']*".prop_map(Literal),
+        arb_separator().prop_map(Separator),
     ];
 
     leaf.prop_recursive(8, 64, 10, |inner| {
         prop_oneof![
             (arb_name(), vec(inner.clone(), 0..10)).prop_map(|(name, sub)| Named {
                 name: name,
-                sub: Tree(sub)
+                sub: Tree(sub),
             }),
             (vec(arb_style(), 1..10), vec(inner.clone(), 0..10)).prop_map(|(style, sub)| Format {
-                style: style,
-                sub: Tree(sub)
+                style: style.iter().collect(),
+                sub: Tree(sub),
             }),
-            vec(inner.clone(), 0..10).prop_map(|sub| Group {
-                l: "{".to_string(),
-                r: "}".to_string(),
-                sub: Tree(sub)
+            (arb_delimiter(), vec(inner.clone(), 0..10)).prop_map(|(delimiter, sub)| Group {
+                d: delimiter,
+                sub: Tree(sub),
             }),
-            vec(inner.clone(), 0..10).prop_map(|sub| Group {
-                l: "(".to_string(),
-                r: ")".to_string(),
-                sub: Tree(sub)
-            }),
-            vec(inner.clone(), 0..10).prop_map(|sub| Group {
-                l: "<".to_string(),
-                r: ">".to_string(),
-                sub: Tree(sub)
-            }),
-            vec(inner.clone(), 0..10).prop_map(|sub| Group {
-                l: "[".to_string(),
-                r: "]".to_string(),
-                sub: Tree(sub)
-            }),
+            arb_separator().prop_map(Separator),
         ]
     })
 }

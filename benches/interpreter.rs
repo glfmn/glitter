@@ -4,7 +4,7 @@
 extern crate criterion;
 extern crate glitter_lang;
 
-use glitter_lang::ast::{Expression, Name, Style, Tree};
+use glitter_lang::ast::{Color, CompleteStyle, Delimiter, Expression, Name, Style, Tree};
 use glitter_lang::git::Stats;
 use glitter_lang::interpreter::Interpreter;
 
@@ -34,8 +34,7 @@ fn empty_stats(c: &mut Criterion) {
 
     let empty: Stats = Default::default();
     let expression = Tree(vec![Group {
-        l: "[".to_string(),
-        r: "]".to_string(),
+        d: Delimiter::Square,
         sub: Tree(vec![
             Named {
                 name: Modified,
@@ -57,7 +56,7 @@ fn empty_stats(c: &mut Criterion) {
     }]);
     let mut interpreter = Interpreter::new(empty, true, true);
 
-    c.bench_function("default stats \"\\[\\M\\A\\R\\D\\]\"", move |b| {
+    c.bench_function("default stats \"[MARD]\"", move |b| {
         let mut out = Vec::with_capacity(128);
         b.iter(|| {
             out.clear();
@@ -69,7 +68,7 @@ fn empty_stats(c: &mut Criterion) {
 fn real_world(c: &mut Criterion) {
     use glitter_lang::parser::parse;
 
-    let tree = parse(r"\[#g;*(\b)#r(\B(#~('..')))#w(\(#~;*(\+('↑')\-('↓')))\<#g(\M\A\R\D)#r(\m\a\u\d)>\{#m;*;_(\h('@'))})]' '#b;*('\w')'\n '").expect("failed to parse example");
+    let tree = parse(r"[#g*(b)#r(B(#~('..')))#w(\(#~*(+('↑')-('↓')))<#g(MARD)#r(maud)>{#m*_(h('@'))})]' '#b*('\w')'\n '").expect("failed to parse example");
 
     let mut i = Interpreter::new(stats(), true, true);
     c.bench_function("Real world \"$GIT_FMT\" example", move |b| {
@@ -171,16 +170,17 @@ fn tree_length(c: &mut Criterion) {
     );
 }
 
-fn style_length(c: &mut Criterion) {
+fn interpret_style(c: &mut Criterion) {
+    use Color::*;
     use Expression::*;
     use Style::*;
 
-    macro_rules! n_styles {
-        ($n:expr) => {
+    macro_rules! style {
+        ($style:expr, $content:expr) => {
             |b: &mut Bencher, s: &Stats| {
                 let styles = Tree(vec![Format {
-                    style: std::iter::repeat(Bold).take($n).collect(),
-                    sub: Tree(Vec::new()),
+                    style: $style,
+                    sub: $content,
                 }]);
                 let mut i = Interpreter::new(s.clone(), true, true);
                 let mut out = Vec::with_capacity(128);
@@ -192,14 +192,36 @@ fn style_length(c: &mut Criterion) {
         };
     }
 
+    fn test() -> Tree {
+        Tree(vec![Literal("test".into())])
+    }
+
+    fn make_style(ss: &[Style]) -> CompleteStyle {
+        ss.iter().collect()
+    }
+
     c.bench_functions(
-        "style length",
+        "Interpreting Style",
         vec![
-            Fun::new("2 styles", n_styles!(2)),
-            Fun::new("4 styles", n_styles!(4)),
-            Fun::new("8 styles", n_styles!(8)),
-            Fun::new("16 styles", n_styles!(16)),
-            Fun::new("32 styles", n_styles!(32)),
+            Fun::new("Empty style", style!(Default::default(), Tree::new())),
+            Fun::new("Default style", style!(Default::default(), test())),
+            Fun::new("Bold", style!(make_style(&[Bold]), test())),
+            Fun::new(
+                "Bold, Underline text",
+                style!(make_style(&[Bold, Underline]), test()),
+            ),
+            Fun::new(
+                "Bold, Underline, Italic text",
+                style!(make_style(&[Bold, Underline, Italic]), test()),
+            ),
+            Fun::new(
+                "Colored Text",
+                style!(make_style(&[Fg(Red), Bg(White)]), test()),
+            ),
+            Fun::new(
+                "Colored Underline Text",
+                style!(make_style(&[Fg(Red), Bg(White), Underline]), test()),
+            ),
         ],
         stats(),
     );
@@ -211,6 +233,6 @@ criterion_group!(
     empty_stats,
     nested_named,
     tree_length,
-    style_length,
+    interpret_style,
 );
 criterion_main!(interpreter);

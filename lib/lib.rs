@@ -109,13 +109,10 @@
 //! | `#_;*(`...`)`  | underline bold text            |
 
 extern crate git2;
-#[macro_use]
 extern crate nom;
 #[cfg_attr(test, macro_use)]
 #[cfg(test)]
 extern crate proptest;
-
-use std::io;
 
 pub mod ast;
 mod color;
@@ -124,32 +121,53 @@ pub mod interpreter;
 pub mod parser;
 
 pub use git::Stats;
+use std::fmt::{self, Display};
+use std::io;
 
 #[derive(Debug)]
-pub enum Error {
+pub enum Error<'a> {
     InterpreterError(interpreter::InterpreterErr),
-    ParseError(parser::ParseError),
+    ParseError(parser::ParseError<'a>),
 }
 
-impl From<interpreter::InterpreterErr> for Error {
+impl<'a> Error<'a> {
+    pub fn pretty_print(&self, use_color: bool) -> String {
+        match self {
+            Error::InterpreterError(e) => format!("{:?}", e),
+            Error::ParseError(e) => format!("{}", e.pretty_print(use_color)),
+        }
+    }
+}
+
+impl<'a> From<interpreter::InterpreterErr> for Error<'a> {
     fn from(e: interpreter::InterpreterErr) -> Self {
         Error::InterpreterError(e)
     }
 }
 
-impl From<parser::ParseError> for Error {
-    fn from(e: parser::ParseError) -> Self {
+impl<'a> From<parser::ParseError<'a>> for Error<'a> {
+    fn from(e: parser::ParseError<'a>) -> Self {
         Error::ParseError(e)
     }
 }
 
-pub fn glitter<W: io::Write>(
+impl<'a> Display for Error<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use Error::*;
+        match self {
+            InterpreterError(e) => write!(f, "{:?}", e),
+            ParseError(e) => write!(f, "{:?}", e.pretty_print(false)),
+        }
+    }
+}
+
+pub fn glitter<'a, W: io::Write>(
     stats: Stats,
-    format: String,
+    format: &'a str,
     allow_color: bool,
     bash_prompt: bool,
     w: &mut W,
-) -> Result<(), Error> {
+) -> Result<(), Error<'a>> {
     let tree = parser::parse(format)?;
     interpreter::Interpreter::new(stats, allow_color, bash_prompt).evaluate(&tree, w)?;
     Ok(())

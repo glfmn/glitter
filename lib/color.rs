@@ -1,16 +1,6 @@
-use crate::ast::{Color, Style};
+use crate::ast::{Color, CompleteStyle};
 
 use std::io;
-use std::iter::{Extend, FromIterator, IntoIterator};
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub(crate) struct StyleContext {
-    fg: Option<Color>,
-    bg: Option<Color>,
-    bold: bool,
-    italics: bool,
-    underline: bool,
-}
 
 macro_rules! e {
     ($c:tt, $($cn:expr),*) => {
@@ -24,8 +14,13 @@ macro_rules! e {
     };
 }
 
-impl StyleContext {
-    pub fn write_to<W: io::Write>(&self, w: &mut W, bash_prompt: bool) -> io::Result<()> {
+pub(crate) trait WriteStyle<W: io::Write> {
+    fn write_to(&self, w: &mut W, bash_prompt: bool) -> io::Result<()>;
+    fn write_difference(&self, w: &mut W, prev: &Self, bash_prompt: bool) -> io::Result<()>;
+}
+
+impl<W: io::Write> WriteStyle<W> for CompleteStyle {
+    fn write_to(&self, w: &mut W, bash_prompt: bool) -> io::Result<()> {
         use Color::*;
 
         if bash_prompt {
@@ -83,12 +78,7 @@ impl StyleContext {
         Ok(())
     }
 
-    pub fn write_difference<W: io::Write>(
-        &self,
-        w: &mut W,
-        prev: &StyleContext,
-        bash_prompt: bool,
-    ) -> io::Result<()> {
+    fn write_difference(&self, w: &mut W, prev: &Self, bash_prompt: bool) -> io::Result<()> {
         match Difference::between(&prev, &self) {
             Difference::Add(style) => style.write_to(w, bash_prompt)?,
             Difference::Reset => {
@@ -106,61 +96,16 @@ impl StyleContext {
 
         Ok(())
     }
-
-    pub fn add(&mut self, style: Style) {
-        use Style::*;
-        match style {
-            Fg(color) => self.fg = Some(color),
-            Bg(color) => self.bg = Some(color),
-            Bold => self.bold = true,
-            Italic => self.italics = true,
-            Underline => self.underline = true,
-            Number(_) => (),
-            Reset => *self = Default::default(),
-        }
-    }
-}
-
-impl Default for StyleContext {
-    fn default() -> Self {
-        StyleContext {
-            fg: None,
-            bg: None,
-            bold: false,
-            italics: false,
-            underline: false,
-        }
-    }
-}
-
-impl<'a> Extend<&'a Style> for StyleContext {
-    fn extend<E: IntoIterator<Item = &'a Style>>(&mut self, styles: E) {
-        for style in styles {
-            self.add(*style)
-        }
-    }
-}
-
-impl<'a> FromIterator<&'a Style> for StyleContext {
-    fn from_iter<I: IntoIterator<Item = &'a Style>>(iter: I) -> StyleContext {
-        let mut context = StyleContext::default();
-
-        for style in iter {
-            context.add(*style);
-        }
-
-        context
-    }
 }
 
 pub(crate) enum Difference {
     None,
-    Add(StyleContext),
+    Add(CompleteStyle),
     Reset,
 }
 
 impl Difference {
-    pub fn between(prev: &StyleContext, next: &StyleContext) -> Self {
+    pub fn between(prev: &CompleteStyle, next: &CompleteStyle) -> Self {
         if prev == next {
             return Difference::None;
         }
@@ -174,7 +119,7 @@ impl Difference {
             return Difference::Reset;
         }
 
-        Difference::Add(StyleContext {
+        Difference::Add(CompleteStyle {
             fg: if next.fg != prev.fg { next.fg } else { None },
             bg: if next.bg != prev.bg { next.bg } else { None },
             bold: !prev.bold && next.bold,
